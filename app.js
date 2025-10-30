@@ -1,5 +1,6 @@
-// app.js（最上位メニュー → カテゴリ → 機種 → クラス → 仕様 → 価格カード）
-// ・林業用機械は“機種”から選択する特別フロー
+// app.js（最上位メニュー → カテゴリ → 機種 → クラス → 価格カード）
+// ・「林業用機械」は“機種（フェラバン/グラップルソー/林業用グラップル）”から選択
+// ・「グラップルソー」は仕様（name）階層をスキップして、クラス選択後すぐ金額表示
 // ・Quick Replyのlabel自動短縮（20文字制限）対応
 // ・Flexは6桁カラー、Node >= 18（fetchはグローバル）
 
@@ -302,7 +303,7 @@ app.post("/webhook", async (req, res) => {
 
 // ===== ハンドラ =====
 
-// テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス → 仕様
+// テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス → 仕様（※グラップルソーはスキップ）
 async function handleText(ev) {
   const textRaw = ev.message.text || "";
   const text = normalize(textRaw);
@@ -401,12 +402,29 @@ async function handlePostback(ev) {
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: params.value }));
   }
 
-  // クラス選択 → 仕様
+  // クラス選択 → 仕様（★ グラップルソーは仕様スキップ）
   if (step === "cls") {
-    console.log("[CLS]", params); // デバッグ
+    console.log("[CLS]", params);
     const cat = params.cat;
     const cls = params.value;
-    // 機種（model）指定がある場合はそれに合う name のみ
+
+    // ★ 特例：グラップルソーは仕様をスキップして即金額表示
+    if (cat === "林業用機械" && (params.model === "グラップルソー" || params.model?.includes("グラップルソー"))) {
+      const items = (master.items || []).filter(i =>
+        i.category === cat &&
+        i.class === cls &&
+        baseModel(i.name) === "グラップルソー"
+      );
+      if (items.length === 0) {
+        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+      }
+      const it = items[0];
+      const v = pickVariant(it);
+      const title = `${cat} ${cls}｜グラップルソー`;
+      return reply(ev.replyToken, priceCard(title, v));
+    }
+
+    // ★ 通常処理：仕様一覧を提示
     const names = [
       ...new Set((master.items || [])
         .filter(i =>
