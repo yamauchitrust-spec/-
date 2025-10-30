@@ -1,8 +1,10 @@
 // app.js（最上位 → カテゴリ → 機種 → クラス → 価格カード）
 // ・林業用機械は“機種（フェラバン/グラップルソー/林業用グラップル）”から選択
 // ・グラップルソー：仕様階層スキップ（クラス選択後に即価格）
-// ・フェラバン 0.25㎥：排土板付きのみ → 仕様階層スキップで即価格
-// ・Quick Replyのlabel自動短縮（20文字制限）対応
+// ・フェラバン 0.25㎥：排土板付き固定で即価格
+// ・スライドアーム：通常/法面付きの2択＋法面加算自動計算
+// ・Quick Replyのlabelは自動短縮（20文字制限）＆ postback は idx で軽量化
+// ・「スライド」「テレスコ」→ スライドアームのクラス選択へ誘導
 // ・Flexは6桁カラー、Node >= 18（fetchはグローバル）
 
 import express from "express";
@@ -20,8 +22,16 @@ const PORT           = process.env.PORT || 3000;
 // ---- master.json 読み込み ----
 const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
 
-// ---- “まず機種を選ぶ”カテゴリ（必要に応じて追加可）----
+// ---- “まず機種を選ぶ”カテゴリ ----
 const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
+
+// ---- スライドアーム 法面加算（以前のご指定どおり）----
+const SLOPE_ADD = {
+  "0.2㎥":  { day: 2000, month:  20000 },
+  "0.25㎥": { day: 3000, month:  30000 },
+  "0.45㎥": { day: 4000, month:  40000 },
+  "0.7㎥":  { day: 5000, month:  50000 },
+};
 
 // ===== ユーティリティ =====
 function toHalfWidth(str) {
@@ -61,6 +71,15 @@ function baseModel(name = "") {
   const cut1 = name.split("（")[0];
   const cut2 = cut1.split("(")[0];
   return cut2.trim();
+}
+
+// スライドアームのベース項目を1つ取得（クラスごと）
+// 優先：後方小旋回 → それ以外 → 先頭
+function pickSlideBaseItem(cls) {
+  const list = (master.items || []).filter(i => i.category === "スライドアーム" && i.class === cls);
+  if (list.length === 0) return null;
+  const pref = list.find(i => i.name.includes("後方小旋回"));
+  return pref || list[0];
 }
 
 // ===== LINE 署名検証・返信 =====
@@ -136,25 +155,24 @@ function priceCard(title, p) {
   };
 }
 
-// Quick Reply（最大13件・label20文字制限に自動対応）
+// Quick Reply（最大13件・label20文字制限・postbackは idx のみで軽量化）
 function quickReplyOptions(type, options, payloadKey, extra = {}) {
-  const items = (options || []).filter(Boolean);
+  const list = (options || []).filter(Boolean);
   const safeLabel = (s, max = 20) => {
-    const t = String(s || "");
-    const arr = Array.from(t); // サロゲートペア安全
-    return arr.length <= max ? t : arr.slice(0, max - 1).join("") + "…";
+    const arr = Array.from(String(s || ""));
+    return arr.length <= max ? String(s) : arr.slice(0, max - 1).join("") + "…";
   };
   return {
     type: "text",
     text: `「${type}」を選んでください`,
     quickReply: {
-      items: items.slice(0, 13).map(opt => ({
+      items: list.slice(0, 13).map((opt, i) => ({
         type: "action",
         action: {
           type: "postback",
-          label: safeLabel(opt, 20), // 20文字制限対応
-          data: new URLSearchParams({ step: payloadKey, value: opt, ...extra }).toString(),
-          displayText: String(opt)   // ユーザー表示はフル
+          label: safeLabel(opt, 20),
+          data: new URLSearchParams({ step: payloadKey, idx: String(i), ...extra }).toString(),
+          displayText: String(opt)
         }
       }))
     }
@@ -201,7 +219,6 @@ function modelMenu(cat) {
       .map(i => baseModel(i.name))
       .filter(Boolean)
   )];
-  // ボタンが多い場合はカルーセル分割
   const chunk = (arr, n) => {
     const out = [];
     for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
@@ -237,7 +254,7 @@ function modelMenu(cat) {
   };
 }
 
-// 最上位メニュー（“レンタル金額を知りたい”）
+// 最上位メニュー
 function rootMenu() {
   return {
     type: "flex",
@@ -275,7 +292,6 @@ function rootMenu() {
     }
   };
 }
-
 // ===== Webhook =====
 app.post("/webhook", async (req, res) => {
   if (!validateSignature(req)) return res.status(401).end();
@@ -307,7 +323,20 @@ app.post("/webhook", async (req, res) => {
 // テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス → 仕様（※特例はスキップ）
 async function handleText(ev) {
   const textRaw = ev.message.text || "";
-  const text = normalize(textRaw);
+  const text0 = normalize(textRaw);
+
+  // 「スライド」「テレスコ」はスライドアームに誘導
+  if (/(^|.*)(スライド|テレスコ)(.*|$)/.test(text0)) {
+    const classes = [
+      ...new Set((master.items || [])
+        .filter(i => i.category === "スライドアーム")
+        .map(i => i.class)
+        .filter(Boolean))
+    ];
+    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: "スライドアーム" }));
+  }
+
+  const text = text0;
   const cats = [...new Set((master.items || []).map(i => i.category).filter(Boolean))];
 
   // いつでも「メニュー」でトップへ
@@ -369,47 +398,44 @@ async function handlePostback(ev) {
   if (step === "model") {
     const cat = params.cat;
     const model = params.model; // ベース名
-    // ベース名一致でクラス一覧
-    const classes = [
+
+    // ベース名一致でクラス一覧（重複排除）
+    const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && baseModel(i.name) === model)
         .map(i => i.class)
         .filter(Boolean))
     ];
-    if (classes.length === 0) {
-      // クラスが無い場合は仕様選択へ
-      const names = [
-        ...new Set((master.items || [])
-          .filter(i => i.category === cat && baseModel(i.name) === model)
-          .map(i => i.name)
-          .filter(Boolean))
-      ];
-      if (names.length === 0) {
-        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      }
-      return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat, cls: "", model }));
-    }
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat, model }));
+    // クラス選択（postbackは idx）
+    return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat, model }));
   }
 
   // カテゴリ → クラス（通常ルート）
   if (step === "cat") {
-    const classes = [
+    const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === params.value)
         .map(i => i.class)
         .filter(Boolean))
     ];
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: params.value }));
+    return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat: params.value }));
   }
 
   // クラス選択 → 仕様（★ 特例はスキップして即価格）
   if (step === "cls") {
     console.log("[CLS]", params);
     const cat = params.cat;
-    const cls = params.value;
 
-    // ★ 特例1：グラップルソーは仕様をスキップして即金額表示
+    // classesAll を再計算（idx → 実体化）
+    const classesAll = [
+      ...new Set((master.items || [])
+        .filter(i => i.category === cat && (params.model ? baseModel(i.name) === params.model : true))
+        .map(i => i.class)
+        .filter(Boolean))
+    ];
+    const cls = params.idx != null ? classesAll[Number(params.idx)] : params.value;
+
+    // ★ 特例1：グラップルソーは仕様スキップ → 即金額
     if (cat === "林業用機械" && (params.model === "グラップルソー" || params.model?.includes("グラップルソー"))) {
       const items = (master.items || []).filter(i =>
         i.category === cat &&
@@ -419,13 +445,13 @@ async function handlePostback(ev) {
       if (items.length === 0) {
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
       }
-      const it = items[0]; // グラップルソーは1仕様扱い
+      const it = items[0];
       const v = pickVariant(it);
       const title = `${cat} ${cls}｜グラップルソー`;
       return reply(ev.replyToken, priceCard(title, v));
     }
 
-    // ★ 特例2：フェラバン 0.25㎥ は排土板付きのみ → 即金額表示
+    // ★ 特例2：フェラバン 0.25㎥ は排土板付き固定 → 即金額
     if (
       cat === "林業用機械" &&
       (params.model === "フェラバンチャーザウルスロボ" || params.model?.includes("フェラバン")) &&
@@ -439,15 +465,19 @@ async function handlePostback(ev) {
       if (items.length === 0) {
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
       }
-      // 排土板付きを優先取得（無ければ先頭）
       const it = items.find(i => i.name.includes("排土板")) || items[0];
       const v = pickVariant(it);
       const title = `${cat} ${cls}｜${baseModel(it.name)}（排土板付き）`;
       return reply(ev.replyToken, priceCard(title, v));
     }
 
-    // ★ 通常処理：仕様一覧を提示
-    const names = [
+    // ★ スライドアーム：通常/法面付き の2択を提示（この時点では価格出さない）
+    if (cat === "スライドアーム") {
+      return reply(ev.replyToken, quickReplyOptions("仕様", ["通常", "法面付き"], "name", { cat, cls }));
+    }
+
+    // 通常処理：仕様名一覧を作成 → Quick Reply（idx）
+    const namesAll = [
       ...new Set((master.items || [])
         .filter(i =>
           i.category === cat &&
@@ -457,15 +487,54 @@ async function handlePostback(ev) {
         .map(i => i.name)
         .filter(Boolean))
     ];
-    return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat, cls }));
+    return reply(ev.replyToken, quickReplyOptions("仕様", namesAll, "name", { cat, cls }));
   }
-
   // 仕様選択 → 価格カード
   if (step === "name") {
+    const cat = params.cat;
+    const cls = params.cls;
+
+    // ★ スライドアームの「通常/法面付き」は加算で即計算
+    if (cat === "スライドアーム") {
+      const choices = ["通常", "法面付き"];
+      const chosen = params.idx != null ? choices[Number(params.idx)] : params.value;
+
+      if (chosen === "通常" || chosen === "法面付き") {
+        const it = pickSlideBaseItem(cls);
+        if (!it) {
+          return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+        }
+        const v = pickVariant(it);
+
+        if (chosen === "法面付き") {
+          const add = SLOPE_ADD[cls] || { day: 0, month: 0 };
+          v.day   = (v.day ?? 0) + add.day;
+          v.month = (v.month ?? 0) + add.month;
+          const title = `スライドアーム ${cls}｜${baseModel(it.name)}（法面付き）`;
+          return reply(ev.replyToken, priceCard(title, v));
+        } else {
+          const title = `スライドアーム ${cls}｜${baseModel(it.name)}（通常）`;
+          return reply(ev.replyToken, priceCard(title, v));
+        }
+      }
+      // ここに来るのは通常の仕様名（個別行）を選んだ場合（将来拡張用）
+    }
+
+    // 通常：idx → 実体化して価格表示
+    const namesAll = [
+      ...new Set((master.items || [])
+        .filter(i =>
+          i.category === cat &&
+          i.class === cls &&
+          (params.model ? baseModel(i.name) === params.model : true)
+        )
+        .map(i => i.name)
+        .filter(Boolean))
+    ];
+    const name = params.idx != null ? namesAll[Number(params.idx)] : params.value;
+
     const items = (master.items || []).filter(i =>
-      i.category === params.cat &&
-      i.class === params.cls &&
-      i.name === params.value
+      i.category === cat && i.class === cls && i.name === name
     );
     if (items.length === 0) {
       console.warn("[NO MATCH]", params);
@@ -474,7 +543,7 @@ async function handlePostback(ev) {
     const it = items[0];
     const v = pickVariant(it);
     console.log("[PRICE]", { matched: params, variant: v });
-    const title = `${params.cat} ${params.cls}｜${params.value}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
+    const title = `${cat} ${cls}｜${name}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
     return reply(ev.replyToken, priceCard(title, v));
   }
 }
