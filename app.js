@@ -78,17 +78,16 @@ function priceCard(title, p) {
     type: "flex",
     altText: "レンタル価格",
     contents: {
-      type: "bubble",
-      body: {
-        type: "box", layout: "vertical", spacing: "md",
-        contents: [
-          { type: "text", text: title, weight: "bold", wrap: true },
-          { type: "separator" },
-          { type: "box", layout: "vertical", spacing: "sm", contents: rows }
-        ]
-      }
+    type: "bubble",
+    body: {
+      type: "box", layout: "vertical", spacing: "md",
+      contents: [
+        { type: "text", text: title, weight: "bold", wrap: true },
+        { type: "separator" },
+        { type: "box", layout: "vertical", spacing: "sm", contents: rows }
+      ]
     }
-  };
+  }};
 }
 
 app.post("/webhook", async (req, res) => {
@@ -102,7 +101,7 @@ app.post("/webhook", async (req, res) => {
         await handlePostback(ev);
       }
     } catch (e) {
-      await reply(ev.replyToken, { type:"text", text:"エラーが発生しました。" });
+      await reply(ev.replyToken, { type:"text", text:"エラーが発生しました。入力内容をご確認ください。" });
       console.error(e);
     }
   }
@@ -134,10 +133,18 @@ async function handlePostback(ev) {
     const items = master.items.filter(i =>
       i.category === params.cat && i.class === params.cls && i.name === params.value
     );
-    if (items.length === 0) return reply(ev.replyToken, { type:"text", text:"該当データがありません。" });
+    if (items.length === 0) return reply(ev.replyToken, { type:"text", text:"該当データが見つかりませんでした。" });
     const it = items[0];
     const v = it.variants ? it.variants[0] : null;
-    const title = `${params.cat} ${params.cls}｜${params.value}`;
+    const title = `${params.cat} ${params.cls}｜${params.value}${v && v.label && v.label!=="通常" ? "・"+v.label : ""}`;
+    return reply(ev.replyToken, priceCard(title, v));
+  }
+  if (step === "var") {
+    const item = master.items.find(i =>
+      i.category===params.cat && i.class===params.cls && i.name===params.name
+    );
+    const v = item.variants.find(x => x.label === params.value);
+    const title = `${params.cat} ${params.cls}｜${params.name}・${v.label}`;
     return reply(ev.replyToken, priceCard(title, v));
   }
 }

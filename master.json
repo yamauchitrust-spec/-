@@ -1,0 +1,1544 @@
+{
+  "version": "2025-10-30",
+  "aliases": {
+    "スライド": "スライドアーム",
+    "テレスコ": "スライドアーム",
+    "フェラバン": "フェラバンチャーザウルスロボ"
+  },
+  "items": [
+    {
+      "category": "木材破砕機",
+      "class": "",
+      "name": "SR3100",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 450000,
+          "base": 10000,
+          "ins": 0,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "木材破砕機",
+      "class": "",
+      "name": "MC2000",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 100000,
+          "month": 1600000,
+          "base": 15000,
+          "ins": 0,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "木材破砕機",
+      "class": "",
+      "name": "MC4000/MC6000",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 180000,
+          "month": 2700000,
+          "base": 30000,
+          "ins": 0,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "林業用グラップル",
+      "class": "0.25㎥",
+      "name": "排土板無し",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 25000,
+          "month": 300000,
+          "base": 3000,
+          "ins": 0,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "林業用グラップル",
+      "class": "0.45㎥",
+      "name": "排土板無し",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 320000,
+          "base": 4000,
+          "ins": 0,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "林業用グラップル",
+      "class": "0.45㎥",
+      "name": "排土板付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 360000,
+          "base": 4000,
+          "ins": 0,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "フェラバンチャーザウルスロボ",
+      "class": "0.25㎥",
+      "name": "―",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 320000,
+          "base": 3000,
+          "ins": 0,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "フェラバンチャーザウルスロボ",
+      "class": "0.45㎥",
+      "name": "排土板無し",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 32000,
+          "month": 380000,
+          "base": 4000,
+          "ins": 0,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "フェラバンチャーザウルスロボ",
+      "class": "0.45㎥",
+      "name": "排土板付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 420000,
+          "base": 4000,
+          "ins": 0,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "グラップルソー",
+      "class": "0.45㎥",
+      "name": "標準",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 33000,
+          "month": 400000,
+          "base": 5000,
+          "ins": 0,
+          "env": 600,
+          "note": "ソー買取 ¥15,000"
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "2.5t",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 10000,
+          "month": 100000,
+          "base": 1000,
+          "ins": 500,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "2t・3t",
+      "name": "全旋回",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 12000,
+          "month": 140000,
+          "base": 1000,
+          "ins": 500,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "3.3t",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 14000,
+          "month": 170000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "4t",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 16000,
+          "month": 200000,
+          "base": 1000,
+          "ins": 600,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "4t",
+      "name": "全旋回",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 25000,
+          "month": 300000,
+          "base": 1000,
+          "ins": 600,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "4t",
+      "name": "キャビン",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 220000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "7t",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 25000,
+          "month": 350000,
+          "base": 2000,
+          "ins": 800,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "7t",
+      "name": "全旋回",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 430000,
+          "base": 2000,
+          "ins": 800,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "10t",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 40000,
+          "month": 550000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "10t",
+      "name": "全旋回",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 50000,
+          "month": 650000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "キャリアダンプ",
+      "class": "14t",
+      "name": "全旋回",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 55000,
+          "month": 800000,
+          "base": 3000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "4t",
+      "name": "D20P・キャノピー",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 8000,
+          "month": 90000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "8t",
+      "name": "D31P・キャノピー",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 15000,
+          "month": 200000,
+          "base": 2000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "8t",
+      "name": "D31P・キャビン",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 240000,
+          "base": 2000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "8t",
+      "name": "D3K・キャノピー",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 240000,
+          "base": 2000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "8t",
+      "name": "D3K・キャビン",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 22000,
+          "month": 260000,
+          "base": 2000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "13t",
+      "name": "D51PX",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 25000,
+          "month": 430000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "19t",
+      "name": "D5LGP・シングルクローザーシュー",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 480000,
+          "base": 4000,
+          "ins": 1200,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "ブルドーザー",
+      "class": "13t",
+      "name": "D6K・折り畳みブレード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 480000,
+          "base": 4000,
+          "ins": 1200,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.2㎥",
+      "name": "後方小旋回・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 16000,
+          "month": 200000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.2㎥",
+      "name": "後方小旋回・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 220000,
+          "base": 1000,
+          "ins": 500,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.25㎥",
+      "name": "後方小旋回・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 220000,
+          "base": 2000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.25㎥",
+      "name": "超小旋回・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 220000,
+          "base": 2000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.25㎥",
+      "name": "後方小旋回・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 21000,
+          "month": 250000,
+          "base": 2000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.25㎥",
+      "name": "超小旋回・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 21000,
+          "month": 250000,
+          "base": 2000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.45㎥",
+      "name": "後方小旋回（排土板付き）",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 260000,
+          "base": 2000,
+          "ins": 800,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.45㎥",
+      "name": "後方小旋回・クレーン仕様（排土板付き）",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 22000,
+          "month": 300000,
+          "base": 2000,
+          "ins": 800,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.45㎥",
+      "name": "後方小旋回・法面付き（排土板付き）",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 24000,
+          "month": 300000,
+          "base": 2000,
+          "ins": 800,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.45㎥",
+      "name": "後方小旋回・クレーン仕様・法面付き（排土板付き）",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 26000,
+          "month": 340000,
+          "base": 2000,
+          "ins": 800,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 26000,
+          "month": 390000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 420000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "スタンダード・ゴムキャタ・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 450000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "後方小旋回・ゴムキャタ",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 32000,
+          "month": 480000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "後方小旋回・鉄キャタ・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 450000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 31000,
+          "month": 440000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 33000,
+          "month": 470000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "スタンダード・ゴムキャタ・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 500000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "後方小旋回・ゴムキャタ・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 37000,
+          "month": 530000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "スライドアーム",
+      "class": "0.7㎥",
+      "name": "後方小旋回・鉄キャタ・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 500000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.45㎥",
+      "name": "12mスタンダード・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 380000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.45㎥",
+      "name": "14mスタンダード・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 380000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.45㎥",
+      "name": "12mスタンダード・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 32000,
+          "month": 420000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.45㎥",
+      "name": "14mスタンダード・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 32000,
+          "month": 420000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "15mスタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 370000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "15mスタンダード・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 33000,
+          "month": 430000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "15mスタンダード・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 33000,
+          "month": 430000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "15mスタンダード・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 470000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "18mスタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 450000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "18mスタンダード・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 38000,
+          "month": 480000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "18mスタンダード・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 38000,
+          "month": 480000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "ロングアーム",
+      "class": "0.7㎥",
+      "name": "18mスタンダード・クレーン仕様・法面付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 40000,
+          "month": 520000,
+          "base": 5000,
+          "ins": 1200,
+          "env": 1000
+        }
+      ]
+    },
+    {
+      "category": "チルトローテーター",
+      "class": "0.1㎥",
+      "name": "―",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 340000,
+          "base": 2000,
+          "ins": 500,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "チルトローテーター",
+      "class": "0.25㎥",
+      "name": "―",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 420000,
+          "base": 3000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "チルトローテーター",
+      "class": "0.45㎥",
+      "name": "―",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 47000,
+          "month": 530000,
+          "base": 3000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "クローラーフォーク",
+      "class": "",
+      "name": "普通サヤ",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 250000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "クローラーフォーク",
+      "class": "",
+      "name": "長サヤ",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 270000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "クローラークレーン",
+      "class": "",
+      "name": "4.9t",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 23000,
+          "month": 230000,
+          "base": 2000,
+          "ins": 1000,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "高所作業車",
+      "class": "",
+      "name": "NUZ090",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 240000,
+          "base": 1000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "タイヤショベル",
+      "class": "0.3〜0.5㎥",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 8000,
+          "month": 120000,
+          "base": 1000,
+          "ins": 600,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "タイヤショベル",
+      "class": "1.0〜1.4㎥",
+      "name": "スタンダード",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 12000,
+          "month": 180000,
+          "base": 2000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "タイヤショベル",
+      "class": "1.2㎥",
+      "name": "排土板付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 230000,
+          "base": 2000,
+          "ins": 800,
+          "env": 0
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 12000,
+          "month": 130000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・クレーン仕様",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 13000,
+          "month": 150000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・ゴムキャタ",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 18000,
+          "month": 180000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・共用配管",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 200000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・ゴムキャタ・共用配管",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 22000,
+          "month": 220000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・ゴムキャタ・共用配管",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 23000,
+          "month": 240000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・鉄キャタ（排土板なし）",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20000,
+          "month": 200000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・鉄キャタ・排土板付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 25000,
+          "month": 300000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・共用配管・排土板付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 360000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・5本配管・排土板付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 35000,
+          "month": 420000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・共用配管・ブレーカー付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 38000,
+          "month": 430000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・ゴムキャタ・共用配管・ブレーカー付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 40000,
+          "month": 450000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・ゴムキャタ・共用配管・ブレーカー付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 41000,
+          "month": 470000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・共用配管・排土板付き・ブレーカー付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 48000,
+          "month": 590000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "機械式ハサミ付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 28000,
+          "month": 330000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・鉄キャタ・共用配管・油圧式ハサミ付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 350000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "スタンダード・ゴムキャタ・共用配管・油圧式ハサミ付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 370000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・ゴムキャタ・共用配管・油圧式ハサミ付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 390000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "後方小旋回・共用配管・排土板付き・油圧式ハサミ付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 30000,
+          "month": 510000,
+          "base": 3000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.45㎥",
+      "name": "鉄板マグネット付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 45000,
+          "month": 580000,
+          "base": 2000,
+          "ins": 800,
+          "env": 600
+        }
+      ]
+    },
+    {
+      "category": "油圧ショベル",
+      "class": "0.7㎥",
+      "name": "鉄板マグネット付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 55000,
+          "month": 650000,
+          "base": 5000,
+          "ins": 1000,
+          "env": 800
+        }
+      ]
+    },
+    {
+      "category": "アルミ代車",
+      "class": "",
+      "name": "―",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 90,
+          "month": null,
+          "base": 1500,
+          "ins": null,
+          "env": null,
+          "note": "単管パイプ 日¥1"
+        }
+      ]
+    },
+    {
+      "category": "単管パイプ",
+      "class": "",
+      "name": "一本あたり",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 1,
+          "month": null,
+          "base": null,
+          "ins": null,
+          "env": null
+        }
+      ]
+    },
+    {
+      "category": "鉄板",
+      "class": "3×6",
+      "name": "1枚",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 15,
+          "month": null,
+          "base": 300,
+          "ins": null,
+          "env": null
+        }
+      ]
+    },
+    {
+      "category": "鉄板",
+      "class": "5×10",
+      "name": "1枚",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 20,
+          "month": null,
+          "base": 400,
+          "ins": null,
+          "env": null
+        }
+      ]
+    },
+    {
+      "category": "鉄板",
+      "class": "5×20",
+      "name": "1枚",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 40,
+          "month": null,
+          "base": 800,
+          "ins": null,
+          "env": null
+        }
+      ]
+    },
+    {
+      "category": "コンパクトトラックローダー",
+      "class": "",
+      "name": "CAT 259D3",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 13000,
+          "month": 180000,
+          "base": 3000,
+          "ins": null,
+          "env": null
+        }
+      ]
+    },
+    {
+      "category": "コンパクトトラックローダー",
+      "class": "",
+      "name": "259D マルチャー付き",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 68000,
+          "month": 800000,
+          "base": 3000,
+          "ins": null,
+          "env": null,
+          "note": "高出力マルチャー装着"
+        }
+      ]
+    },
+    {
+      "category": "除湿器",
+      "class": "",
+      "name": "ドライマックス",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 3500,
+          "month": 40000,
+          "base": 1000,
+          "ins": 100,
+          "env": null
+        }
+      ]
+    },
+    {
+      "category": "スポットクーラー",
+      "class": "",
+      "name": "―",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 1000,
+          "month": 20000,
+          "base": 1000,
+          "ins": null,
+          "env": null,
+          "note": "3日保証"
+        }
+      ]
+    },
+    {
+      "category": "ラジコン草刈り機",
+      "class": "",
+      "name": "SH950RC",
+      "variants": [
+        {
+          "label": "通常",
+          "day": 25000,
+          "month": 300000,
+          "base": 2000,
+          "ins": 1000,
+          "env": null
+        }
+      ]
+    }
+  ]
+}
