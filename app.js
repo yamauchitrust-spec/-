@@ -1,6 +1,7 @@
 // app.js（最上位メニュー → カテゴリ → 機種 → クラス → 仕様 → 価格カード）
-// Flex準拠・6桁カラー・「林業用機械」は“機種”から選択できる特別フロー
-// Node >= 18（fetch はグローバル）
+// ・林業用機械は“機種”から選択する特別フロー
+// ・Quick Replyのlabel自動短縮（20文字制限）対応
+// ・Flexは6桁カラー、Node >= 18（fetchはグローバル）
 
 import express from "express";
 import crypto from "crypto";
@@ -17,7 +18,7 @@ const PORT           = process.env.PORT || 3000;
 // ---- master.json 読み込み ----
 const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
 
-// ---- “まず機種を選ぶ”カテゴリ（必要に応じて増やせます）----
+// ---- “まず機種を選ぶ”カテゴリ（必要に応じて追加可）----
 const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
 
 // ===== ユーティリティ =====
@@ -53,8 +54,7 @@ function normalize(text) {
   }
   return t;
 }
-
-// “機種（ベース名）”を抽出：括弧の前まで
+// “機種（ベース名）”を抽出：括弧の前まで（全角/半角対応）
 function baseModel(name = "") {
   const cut1 = name.split("（")[0];
   const cut2 = cut1.split("(")[0];
@@ -134,8 +134,14 @@ function priceCard(title, p) {
   };
 }
 
+// Quick Reply（最大13件・label20文字制限に自動対応）
 function quickReplyOptions(type, options, payloadKey, extra = {}) {
   const items = (options || []).filter(Boolean);
+  const safeLabel = (s, max = 20) => {
+    const t = String(s || "");
+    const arr = Array.from(t); // サロゲートペア安全
+    return arr.length <= max ? t : arr.slice(0, max - 1).join("") + "…";
+  };
   return {
     type: "text",
     text: `「${type}」を選んでください`,
@@ -144,9 +150,9 @@ function quickReplyOptions(type, options, payloadKey, extra = {}) {
         type: "action",
         action: {
           type: "postback",
-          label: opt,
+          label: safeLabel(opt, 20), // ← ここが重要
           data: new URLSearchParams({ step: payloadKey, value: opt, ...extra }).toString(),
-          displayText: opt
+          displayText: String(opt)   // 画面に出るテキストはフル名称
         }
       }))
     }
@@ -296,7 +302,7 @@ app.post("/webhook", async (req, res) => {
 
 // ===== ハンドラ =====
 
-// ★ テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス … の順に誘導
+// テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス → 仕様
 async function handleText(ev) {
   const textRaw = ev.message.text || "";
   const text = normalize(textRaw);
@@ -307,7 +313,7 @@ async function handleText(ev) {
     return reply(ev.replyToken, rootMenu());
   }
 
-  // 「レンタル金額を知りたい」をテキストで送ってきた場合 → カテゴリメニュー
+  // 「レンタル金額を知りたい」→ カテゴリメニュー
   if (text === "レンタル金額を知りたい") {
     return reply(ev.replyToken, categoryMenu(cats));
   }
@@ -315,9 +321,8 @@ async function handleText(ev) {
   // テキストがカテゴリ名に完全一致
   if (cats.includes(text)) {
     const cat = text;
-    // “機種から選ぶ”カテゴリはまず機種メニューへ
     if (MODEL_FIRST_CATEGORIES.has(cat)) {
-      return reply(ev.replyToken, modelMenu(cat));
+      return reply(ev.replyToken, modelMenu(cat)); // まず機種
     }
     // 通常カテゴリはクラス選択へ
     const classes = [
@@ -344,7 +349,7 @@ async function handleText(ev) {
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: hitCat }));
   }
 
-  // どれにも当たらなければトップメニュー
+  // どれにも当たらなければトップへ
   return reply(ev.replyToken, rootMenu());
 }
 
@@ -358,11 +363,11 @@ async function handlePostback(ev) {
     return reply(ev.replyToken, categoryMenu(cats));
   }
 
-  // ★ 機種選択（林業用機械など）
+  // 機種選択（林業用機械など）
   if (step === "model") {
     const cat = params.cat;
     const model = params.model; // ベース名
-    // 該当モデルに含まれるクラス一覧（ベース名一致で抽出）
+    // ベース名一致でクラス一覧
     const classes = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && baseModel(i.name) === model)
@@ -370,7 +375,7 @@ async function handlePostback(ev) {
         .filter(Boolean))
     ];
     if (classes.length === 0) {
-      // クラスがない場合は、そのまま仕様へ
+      // クラスが無い場合は仕様選択へ
       const names = [
         ...new Set((master.items || [])
           .filter(i => i.category === cat && baseModel(i.name) === model)
@@ -382,11 +387,10 @@ async function handlePostback(ev) {
       }
       return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat, cls: "", model }));
     }
-    // まずはクラス選択へ（model 情報を持ち回り）
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat, model }));
   }
 
-  // 既存：カテゴリ → クラス
+  // カテゴリ → クラス（通常ルート）
   if (step === "cat") {
     const classes = [
       ...new Set((master.items || [])
@@ -399,9 +403,10 @@ async function handlePostback(ev) {
 
   // クラス選択 → 仕様
   if (step === "cls") {
+    console.log("[CLS]", params); // デバッグ
     const cat = params.cat;
     const cls = params.value;
-    // 機種（model）指定がある場合は、それに合う name のみ提示
+    // 機種（model）指定がある場合はそれに合う name のみ
     const names = [
       ...new Set((master.items || [])
         .filter(i =>
