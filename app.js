@@ -1,5 +1,6 @@
-// app.js（最上位メニュー→カテゴリタップ式 / Flex準拠＋6桁カラー）
-// Node >=18（fetchはグローバル）
+// app.js（最上位メニュー → カテゴリタップ式 → クラス → 仕様 → 価格カード）
+// Flex準拠・6桁カラー・カテゴリタップでトップに戻らない修正済み
+// Node >= 18（fetch はグローバル）
 
 import express from "express";
 import crypto from "crypto";
@@ -13,9 +14,10 @@ const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
 const CHANNEL_TOKEN  = process.env.LINE_CHANNEL_ACCESS_TOKEN;
 const PORT           = process.env.PORT || 3000;
 
+// ---- master.json 読み込み ----
 const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
 
-// ===== 数値補正 =====
+// ===== ユーティリティ =====
 function toHalfWidth(str) {
   return String(str)
     .replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
@@ -40,8 +42,16 @@ function pickVariant(it) {
     note:  it?.note || ""
   };
 }
+function normalize(text) {
+  const t = (text || "").trim();
+  const al = master.aliases || {};
+  for (const [alias, canon] of Object.entries(al)) {
+    if (t.includes(alias)) return t.replace(alias, canon);
+  }
+  return t;
+}
 
-// ===== 署名検証・返信 =====
+// ===== LINE 署名検証・返信 =====
 function validateSignature(req) {
   const signature = req.headers["x-line-signature"];
   const hmac = crypto.createHmac("sha256", CHANNEL_SECRET);
@@ -54,7 +64,6 @@ async function reply(replyToken, payload) {
     replyToken,
     messages: Array.isArray(payload) ? payload : [payload],
   });
-
   const res = await fetch("https://api.line.me/v2/bot/message/reply", {
     method: "POST",
     headers: {
@@ -63,24 +72,13 @@ async function reply(replyToken, payload) {
     },
     body
   });
-
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     console.error("[LINE API ERROR]", res.status, res.statusText, text);
   }
 }
 
-// ===== 正規化（エイリアス対応） =====
-function normalize(text) {
-  const t = (text || "").trim();
-  const al = master.aliases || {};
-  for (const [alias, canon] of Object.entries(al)) {
-    if (t.includes(alias)) return t.replace(alias, canon);
-  }
-  return t;
-}
-
-// ===== UI（価格カード / カテゴリメニュー / ルートメニュー） =====
+// ===== UI（Flex） =====
 function priceCard(title, p) {
   const fields = [
     ["日決め",         toNumber(p?.day)],
@@ -89,7 +87,6 @@ function priceCard(title, p) {
     ["保証料",         toNumber(p?.ins)],
     ["環境サービス料", toNumber(p?.env)]
   ];
-
   const rows = fields.map(([k, n]) => ({
     type: "box",
     layout: "baseline",
@@ -98,7 +95,6 @@ function priceCard(title, p) {
       { type: "text", text: n == null ? "―" : `¥${n.toLocaleString()}`, size: "sm", align: "end", flex: 6 }
     ]
   }));
-
   if (p?.note) {
     rows.push({
       type: "text",
@@ -109,7 +105,6 @@ function priceCard(title, p) {
       margin: "md"
     });
   }
-
   return {
     type: "flex",
     altText: `${title} のレンタル価格`,
@@ -129,7 +124,26 @@ function priceCard(title, p) {
   };
 }
 
-// カテゴリメニュー（多い場合はカルーセルに自動分割）
+function quickReplyOptions(type, options, payloadKey, extra = {}) {
+  const items = (options || []).filter(Boolean);
+  return {
+    type: "text",
+    text: `「${type}」を選んでください`,
+    quickReply: {
+      items: items.map(opt => ({
+        type: "action",
+        action: {
+          type: "postback",
+          label: opt,
+          data: new URLSearchParams({ step: payloadKey, value: opt, ...extra }).toString(),
+          displayText: opt
+        }
+      }))
+    }
+  };
+}
+
+// カテゴリメニュー（多い場合はカルーセルに分割）
 function categoryMenu(categories) {
   const chunk = (arr, n) => {
     const out = [];
@@ -137,7 +151,6 @@ function categoryMenu(categories) {
     return out;
   };
   const groups = chunk(categories, 10);
-
   const bubbles = groups.map((group, idx) => ({
     type: "bubble",
     body: {
@@ -150,12 +163,11 @@ function categoryMenu(categories) {
           type: "button",
           style: "secondary",
           height: "sm",
-          action: { type: "message", label: cat, text: cat }
+          action: { type: "message", label: cat, text: cat } // ← タップでテキスト送信
         }))
       ]
     }
   }));
-
   return {
     type: "flex",
     altText: "カテゴリを選択してください",
@@ -163,7 +175,7 @@ function categoryMenu(categories) {
   };
 }
 
-// 最上位メニュー（レンタル金額を知りたい）
+// 最上位メニュー（“レンタル金額を知りたい”）
 function rootMenu() {
   return {
     type: "flex",
@@ -216,7 +228,7 @@ app.post("/webhook", async (req, res) => {
       }
 
       if (ev.type === "message" && ev.message.type === "text") {
-        await handleText(ev); // 中でトップメニューを返す
+        await handleText(ev);
       } else if (ev.type === "postback") {
         await handlePostback(ev);
       }
@@ -228,17 +240,48 @@ app.post("/webhook", async (req, res) => {
   res.status(200).end();
 });
 
-// どんなテキストでも、まずは最上位メニューを返す
+// ===== ハンドラ =====
+
+// ★ 修正版：カテゴリをタップしてもトップに戻らないように分岐
 async function handleText(ev) {
   const textRaw = ev.message.text || "";
   const text = normalize(textRaw);
+  const cats = [...new Set((master.items || []).map(i => i.category).filter(Boolean))];
 
-  // いつでも「メニュー」でトップへ戻れる
+  // いつでも「メニュー」でトップへ
   if (text === "メニュー") {
     return reply(ev.replyToken, rootMenu());
   }
 
-  // 初回/自由入力：まずトップを見せる
+  // 「レンタル金額を知りたい」をテキストで送ってきた場合 → カテゴリメニュー
+  if (text === "レンタル金額を知りたい") {
+    return reply(ev.replyToken, categoryMenu(cats));
+  }
+
+  // テキストがカテゴリ名に完全一致 → クラス選択へ
+  if (cats.includes(text)) {
+    const classes = [
+      ...new Set((master.items || [])
+        .filter(i => i.category === text)
+        .map(i => i.class)
+        .filter(Boolean))
+    ];
+    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: text }));
+  }
+
+  // 部分一致（例：「スライド」→スライドアーム）
+  const hitCat = cats.find(c => text.includes(c));
+  if (hitCat) {
+    const classes = [
+      ...new Set((master.items || [])
+        .filter(i => i.category === hitCat)
+        .map(i => i.class)
+        .filter(Boolean))
+    ];
+    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: hitCat }));
+  }
+
+  // どれにも当たらなければトップメニュー
   return reply(ev.replyToken, rootMenu());
 }
 
@@ -246,7 +289,7 @@ async function handlePostback(ev) {
   const params = Object.fromEntries(new URLSearchParams(ev.postback.data || ""));
   const step = params.step;
 
-  // ルートメニュー：「レンタル金額を知りたい」→ カテゴリ選択へ
+  // 最上位アクション：カテゴリメニューへ
   if (step === "action" && params.value === "price") {
     const cats = [...new Set((master.items || []).map(i => i.category).filter(Boolean))];
     return reply(ev.replyToken, categoryMenu(cats));
@@ -274,9 +317,10 @@ async function handlePostback(ev) {
     const items = (master.items || []).filter(i =>
       i.category === params.cat && i.class === params.cls && i.name === params.value
     );
-    if (items.length === 0)
+    if (items.length === 0) {
+      console.warn("[NO MATCH]", params);
       return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-
+    }
     const it = items[0];
     const v = pickVariant(it);
     console.log("[PRICE]", { matched: params, variant: v });
@@ -285,7 +329,7 @@ async function handlePostback(ev) {
   }
 }
 
-// ===== 診断 =====
+// ===== 診断API =====
 app.get("/diag", (req, res) => {
   const { cat, cls, name } = req.query;
   const items = (master.items || []).filter(i => i.category === cat && i.class === cls && i.name === name);
@@ -295,5 +339,6 @@ app.get("/diag", (req, res) => {
   res.json({ ok: true, item: { category: it.category, class: it.class, name: it.name }, variant: v });
 });
 
+// ===== 起動確認 =====
 app.get("/", (_, res) => res.send("LINE Bot OK"));
 app.listen(PORT, () => console.log("Server started on", PORT));
