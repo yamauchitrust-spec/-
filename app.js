@@ -1,6 +1,7 @@
-// app.js（最上位メニュー → カテゴリ → 機種 → クラス → 価格カード）
-// ・「林業用機械」は“機種（フェラバン/グラップルソー/林業用グラップル）”から選択
-// ・「グラップルソー」は仕様（name）階層をスキップして、クラス選択後すぐ金額表示
+// app.js（最上位 → カテゴリ → 機種 → クラス → 価格カード）
+// ・林業用機械は“機種（フェラバン/グラップルソー/林業用グラップル）”から選択
+// ・グラップルソー：仕様階層スキップ（クラス選択後に即価格）
+// ・フェラバン 0.25㎥：排土板付きのみ → 仕様階層スキップで即価格
 // ・Quick Replyのlabel自動短縮（20文字制限）対応
 // ・Flexは6桁カラー、Node >= 18（fetchはグローバル）
 
@@ -151,9 +152,9 @@ function quickReplyOptions(type, options, payloadKey, extra = {}) {
         type: "action",
         action: {
           type: "postback",
-          label: safeLabel(opt, 20), // ← ここが重要
+          label: safeLabel(opt, 20), // 20文字制限対応
           data: new URLSearchParams({ step: payloadKey, value: opt, ...extra }).toString(),
-          displayText: String(opt)   // 画面に出るテキストはフル名称
+          displayText: String(opt)   // ユーザー表示はフル
         }
       }))
     }
@@ -303,7 +304,7 @@ app.post("/webhook", async (req, res) => {
 
 // ===== ハンドラ =====
 
-// テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス → 仕様（※グラップルソーはスキップ）
+// テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス → 仕様（※特例はスキップ）
 async function handleText(ev) {
   const textRaw = ev.message.text || "";
   const text = normalize(textRaw);
@@ -402,13 +403,13 @@ async function handlePostback(ev) {
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: params.value }));
   }
 
-  // クラス選択 → 仕様（★ グラップルソーは仕様スキップ）
+  // クラス選択 → 仕様（★ 特例はスキップして即価格）
   if (step === "cls") {
     console.log("[CLS]", params);
     const cat = params.cat;
     const cls = params.value;
 
-    // ★ 特例：グラップルソーは仕様をスキップして即金額表示
+    // ★ 特例1：グラップルソーは仕様をスキップして即金額表示
     if (cat === "林業用機械" && (params.model === "グラップルソー" || params.model?.includes("グラップルソー"))) {
       const items = (master.items || []).filter(i =>
         i.category === cat &&
@@ -418,9 +419,30 @@ async function handlePostback(ev) {
       if (items.length === 0) {
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
       }
-      const it = items[0];
+      const it = items[0]; // グラップルソーは1仕様扱い
       const v = pickVariant(it);
       const title = `${cat} ${cls}｜グラップルソー`;
+      return reply(ev.replyToken, priceCard(title, v));
+    }
+
+    // ★ 特例2：フェラバン 0.25㎥ は排土板付きのみ → 即金額表示
+    if (
+      cat === "林業用機械" &&
+      (params.model === "フェラバンチャーザウルスロボ" || params.model?.includes("フェラバン")) &&
+      cls === "0.25㎥"
+    ) {
+      const items = (master.items || []).filter(i =>
+        i.category === cat &&
+        i.class === cls &&
+        baseModel(i.name).includes("フェラバンチャーザウルスロボ")
+      );
+      if (items.length === 0) {
+        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+      }
+      // 排土板付きを優先取得（無ければ先頭）
+      const it = items.find(i => i.name.includes("排土板")) || items[0];
+      const v = pickVariant(it);
+      const title = `${cat} ${cls}｜${baseModel(it.name)}（排土板付き）`;
       return reply(ev.replyToken, priceCard(title, v));
     }
 
