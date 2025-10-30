@@ -1,5 +1,5 @@
-// app.js（最上位メニュー → カテゴリタップ式 → クラス → 仕様 → 価格カード）
-// Flex準拠・6桁カラー・カテゴリタップでトップに戻らない修正済み
+// app.js（最上位メニュー → カテゴリ → 機種 → クラス → 仕様 → 価格カード）
+// Flex準拠・6桁カラー・「林業用機械」は“機種”から選択できる特別フロー
 // Node >= 18（fetch はグローバル）
 
 import express from "express";
@@ -16,6 +16,9 @@ const PORT           = process.env.PORT || 3000;
 
 // ---- master.json 読み込み ----
 const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
+
+// ---- “まず機種を選ぶ”カテゴリ（必要に応じて増やせます）----
+const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
 
 // ===== ユーティリティ =====
 function toHalfWidth(str) {
@@ -49,6 +52,13 @@ function normalize(text) {
     if (t.includes(alias)) return t.replace(alias, canon);
   }
   return t;
+}
+
+// “機種（ベース名）”を抽出：括弧の前まで
+function baseModel(name = "") {
+  const cut1 = name.split("（")[0];
+  const cut2 = cut1.split("(")[0];
+  return cut2.trim();
 }
 
 // ===== LINE 署名検証・返信 =====
@@ -130,7 +140,7 @@ function quickReplyOptions(type, options, payloadKey, extra = {}) {
     type: "text",
     text: `「${type}」を選んでください`,
     quickReply: {
-      items: items.map(opt => ({
+      items: items.slice(0, 13).map(opt => ({
         type: "action",
         action: {
           type: "postback",
@@ -163,7 +173,7 @@ function categoryMenu(categories) {
           type: "button",
           style: "secondary",
           height: "sm",
-          action: { type: "message", label: cat, text: cat } // ← タップでテキスト送信
+          action: { type: "message", label: cat, text: cat } // タップでテキスト送信
         }))
       ]
     }
@@ -171,6 +181,50 @@ function categoryMenu(categories) {
   return {
     type: "flex",
     altText: "カテゴリを選択してください",
+    contents: bubbles.length === 1 ? bubbles[0] : { type: "carousel", contents: bubbles }
+  };
+}
+
+// “機種（ベース名）”メニュー（カテゴリ内）
+function modelMenu(cat) {
+  const names = [...new Set(
+    (master.items || [])
+      .filter(i => i.category === cat)
+      .map(i => baseModel(i.name))
+      .filter(Boolean)
+  )];
+  // ボタンが多い場合はカルーセル分割
+  const chunk = (arr, n) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i += n) out.push(arr.slice(i, i + n));
+    return out;
+  };
+  const groups = chunk(names, 10);
+  const bubbles = groups.map((group, idx) => ({
+    type: "bubble",
+    body: {
+      type: "box",
+      layout: "vertical",
+      spacing: "md",
+      contents: [
+        { type: "text", text: `${cat}｜機種を選んでください ${groups.length>1 ? `(${idx+1}/${groups.length})` : ""}`, weight: "bold", size: "md", wrap: true },
+        ...group.map(model => ({
+          type: "button",
+          style: "secondary",
+          height: "sm",
+          action: {
+            type: "postback",
+            label: model,
+            data: new URLSearchParams({ step: "model", cat, model }).toString(),
+            displayText: model
+          }
+        }))
+      ]
+    }
+  }));
+  return {
+    type: "flex",
+    altText: `${cat} の機種を選択`,
     contents: bubbles.length === 1 ? bubbles[0] : { type: "carousel", contents: bubbles }
   };
 }
@@ -242,7 +296,7 @@ app.post("/webhook", async (req, res) => {
 
 // ===== ハンドラ =====
 
-// ★ 修正版：カテゴリをタップしてもトップに戻らないように分岐
+// ★ テキスト入力：カテゴリ→（林業用機械なら 機種）→クラス … の順に誘導
 async function handleText(ev) {
   const textRaw = ev.message.text || "";
   const text = normalize(textRaw);
@@ -258,20 +312,29 @@ async function handleText(ev) {
     return reply(ev.replyToken, categoryMenu(cats));
   }
 
-  // テキストがカテゴリ名に完全一致 → クラス選択へ
+  // テキストがカテゴリ名に完全一致
   if (cats.includes(text)) {
+    const cat = text;
+    // “機種から選ぶ”カテゴリはまず機種メニューへ
+    if (MODEL_FIRST_CATEGORIES.has(cat)) {
+      return reply(ev.replyToken, modelMenu(cat));
+    }
+    // 通常カテゴリはクラス選択へ
     const classes = [
       ...new Set((master.items || [])
-        .filter(i => i.category === text)
+        .filter(i => i.category === cat)
         .map(i => i.class)
         .filter(Boolean))
     ];
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: text }));
+    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat }));
   }
 
   // 部分一致（例：「スライド」→スライドアーム）
   const hitCat = cats.find(c => text.includes(c));
   if (hitCat) {
+    if (MODEL_FIRST_CATEGORIES.has(hitCat)) {
+      return reply(ev.replyToken, modelMenu(hitCat));
+    }
     const classes = [
       ...new Set((master.items || [])
         .filter(i => i.category === hitCat)
@@ -295,6 +358,35 @@ async function handlePostback(ev) {
     return reply(ev.replyToken, categoryMenu(cats));
   }
 
+  // ★ 機種選択（林業用機械など）
+  if (step === "model") {
+    const cat = params.cat;
+    const model = params.model; // ベース名
+    // 該当モデルに含まれるクラス一覧（ベース名一致で抽出）
+    const classes = [
+      ...new Set((master.items || [])
+        .filter(i => i.category === cat && baseModel(i.name) === model)
+        .map(i => i.class)
+        .filter(Boolean))
+    ];
+    if (classes.length === 0) {
+      // クラスがない場合は、そのまま仕様へ
+      const names = [
+        ...new Set((master.items || [])
+          .filter(i => i.category === cat && baseModel(i.name) === model)
+          .map(i => i.name)
+          .filter(Boolean))
+      ];
+      if (names.length === 0) {
+        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+      }
+      return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat, cls: "", model }));
+    }
+    // まずはクラス選択へ（model 情報を持ち回り）
+    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat, model }));
+  }
+
+  // 既存：カテゴリ → クラス
   if (step === "cat") {
     const classes = [
       ...new Set((master.items || [])
@@ -305,17 +397,30 @@ async function handlePostback(ev) {
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: params.value }));
   }
 
+  // クラス選択 → 仕様
   if (step === "cls") {
-    const list = (master.items || []).filter(i =>
-      i.category === params.cat && i.class === params.value
-    );
-    const names = [...new Set(list.map(i => i.name).filter(Boolean))];
-    return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat: params.cat, cls: params.value }));
+    const cat = params.cat;
+    const cls = params.value;
+    // 機種（model）指定がある場合は、それに合う name のみ提示
+    const names = [
+      ...new Set((master.items || [])
+        .filter(i =>
+          i.category === cat &&
+          i.class === cls &&
+          (params.model ? baseModel(i.name) === params.model : true)
+        )
+        .map(i => i.name)
+        .filter(Boolean))
+    ];
+    return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat, cls }));
   }
 
+  // 仕様選択 → 価格カード
   if (step === "name") {
     const items = (master.items || []).filter(i =>
-      i.category === params.cat && i.class === params.cls && i.name === params.value
+      i.category === params.cat &&
+      i.class === params.cls &&
+      i.name === params.value
     );
     if (items.length === 0) {
       console.warn("[NO MATCH]", params);
