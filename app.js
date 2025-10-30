@@ -8,7 +8,9 @@
 // ・スライドアーム：
 //   - 0.25㎥：後方小旋回/超小旋回 → バケット/法面付き
 //   - 0.45㎥：クレーン仕様/クレーン無し → バケット/法面付き
-//   - 0.7㎥ ：スタンダード/後方小旋回 → 鉄キャタ/ゴムキャタ → クレーン仕様/無し → バケット/法面付き
+//   - 0.7㎥ ：スタンダード/後方小旋回 → 鉄キャタ/ゴムキャタ
+//              →（特例：組合せに応じてクレーン分岐スキップ）→ クレーン仕様/無し → バケット/法面付き
+//   - 0.7㎥ 特例：スタンダード×ゴム=クレーン仕様のみ／後方×ゴム=クレーン無しのみ／後方×鉄=クレーン仕様のみ
 //   - 法面付きはクラス別加算（0.2:+2,000/20,000、0.25:+3,000/30,000、0.45:+4,000/40,000、0.7:+5,000/50,000）
 // ・Flex：価格カード（備考表示対応）
 // ・/diag 診断エンドポイントあり
@@ -515,7 +517,7 @@ async function handlePostback(ev) {
         );
       }
       if (cls === "0.7㎥") {
-        // スタンダード/後方 → 鉄/ゴム → クレーン仕様/無し → バケット/法面
+        // スタンダード/後方 → 鉄/ゴム →（特例でスキップ可）→ クレーン → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("タイプ", ["スタンダード", "後方小旋回"], "pose70", { cat, cls })
         );
@@ -540,7 +542,7 @@ async function handlePostback(ev) {
     return reply(ev.replyToken, quickReplyOptions("仕様", namesAll, "name", { cat, cls }));
   }
 
-  // --- 追加：スライド 0.25 用（pose） ---
+  // --- 追加：スライド 0.25 用（pose → name） ---
   if (step === "pose") {
     const cat = params.cat;
     const cls = params.cls;
@@ -548,18 +550,6 @@ async function handlePostback(ev) {
     const pose = params.idx != null ? poses[Number(params.idx)] : params.value;
     return reply(ev.replyToken,
       quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, pose })
-    );
-  }
-
-  // --- 追加：スライド 0.45/0.7 用（crane） ---
-  if (step === "crane") {
-    const cat = params.cat;
-    const cls = params.cls;
-    const cranes = ["クレーン仕様", "クレーン無し"];
-    const crane = params.idx != null ? cranes[Number(params.idx)] : params.value;
-    // pose/track が付いてくるケース（0.7）もそのまま持ち回る
-    return reply(ev.replyToken,
-      quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, crane, pose: params.pose, track: params.track })
     );
   }
 
@@ -574,15 +564,60 @@ async function handlePostback(ev) {
     );
   }
 
-  // --- 追加：スライド 0.7 用（track → crane） ---
+  // --- 置換：スライド 0.7 用（track → crane or 直接 name） ---
   if (step === "track") {
-    const cat = params.cat;
-    const cls = params.cls;
+    const cat  = params.cat;
+    const cls  = params.cls;
     const pose = params.pose;
+
     const tracks = ["鉄キャタ", "ゴムキャタ"];
-    const track = params.idx != null ? tracks[Number(params.idx)] : params.value;
+    const track  = params.idx != null ? tracks[Number(params.idx)] : params.value;
+
+    // ★ 0.7㎥ の特例分岐
+    if (cat === "スライドアーム" && cls === "0.7㎥") {
+      // 1) スタンダード × ゴムキャタ → クレーン仕様のみ
+      if (pose === "スタンダード" && track === "ゴムキャタ") {
+        return reply(ev.replyToken,
+          quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
+            cat, cls, pose, track,
+            crane: "クレーン仕様"
+          })
+        );
+      }
+      // 2) 後方小旋回 × ゴムキャタ → クレーン無しのみ
+      if (pose === "後方小旋回" && track === "ゴムキャタ") {
+        return reply(ev.replyToken,
+          quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
+            cat, cls, pose, track,
+            crane: "クレーン無し"
+          })
+        );
+      }
+      // 3) 後方小旋回 × 鉄キャタ → クレーン仕様のみ
+      if (pose === "後方小旋回" && track === "鉄キャタ") {
+        return reply(ev.replyToken,
+          quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
+            cat, cls, pose, track,
+            crane: "クレーン仕様"
+          })
+        );
+      }
+    }
+
+    // 通常：クレーン仕様 / クレーン無し を選択
     return reply(ev.replyToken,
       quickReplyOptions("クレーン", ["クレーン仕様", "クレーン無し"], "crane", { cat, cls, pose, track })
+    );
+  }
+
+  // --- 追加：スライド 0.45/0.7 用（crane → name） ---
+  if (step === "crane") {
+    const cat = params.cat;
+    const cls = params.cls;
+    const cranes = ["クレーン仕様", "クレーン無し"];
+    const crane = params.idx != null ? cranes[Number(params.idx)] : params.value;
+    return reply(ev.replyToken,
+      quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, crane, pose: params.pose, track: params.track })
     );
   }
 
