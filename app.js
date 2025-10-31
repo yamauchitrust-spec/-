@@ -1,18 +1,16 @@
 // app.js（最上位 → カテゴリ → 機種 → クラス → 価格カード）
 //
-// 改良点まとめ：
-// ・Quick Reply：labelは自動短縮（20文字）／postbackは idx 化で短小データ
-// ・エイリアス：「スライド」「テレスコ」→ スライドアームに誘導
-// ・特例1：グラップルソー → 仕様階層スキップ（クラス選択後に即価格）
-// ・特例2：フェラバン 0.25㎥ → 排土板付き固定で即価格
-// ・スライドアーム：
+// 変更点まとめ：
+// ・価格カードに「メニューに戻る」Quick Reply を追加（カード下から即トップへ戻れる）
+// ・油圧ショベルのクラス並びを 0.1/0.2/0.25/0.45/0.7（存在するものだけ）に固定
+// ・スライドアームの分岐（ご要望どおり）
 //   - 0.25㎥：後方小旋回/超小旋回 → バケット/法面付き
 //   - 0.45㎥：クレーン仕様/クレーン無し → バケット/法面付き
-//   - 0.7㎥ ：スタンダード/後方小旋回 → 鉄キャタ/ゴムキャタ
-//              →（特例：組合せに応じてクレーン分岐スキップ）→ クレーン仕様/無し → バケット/法面付き
-//   - 0.7㎥ 特例：スタンダード×ゴム=クレーン仕様のみ／後方×ゴム=クレーン無しのみ／後方×鉄=クレーン仕様のみ
-//   - 法面付きはクラス別加算（0.2:+2,000/20,000、0.25:+3,000/30,000、0.45:+4,000/40,000、0.7:+5,000/50,000）
-// ・Flex：価格カード（備考表示対応）
+//   - 0.7㎥ ：スタンダード/後方小旋回 → 鉄/ゴム →（特例に応じてクレーン分岐スキップ）→ クレーン仕様/無し → バケット/法面付き
+//   - 特例（0.7）：スタンダード×ゴム＝クレーン仕様のみ／後方×ゴム＝クレーン無しのみ／後方×鉄＝クレーン仕様のみ
+// ・グラップルソー：クラス選択後に即価格
+// ・フェラバン 0.25㎥：排土板付き固定で即価格
+// ・「スライド」「テレスコ」入力でスライドアームのクラス選択に誘導
 // ・/diag 診断エンドポイントあり
 
 import express from "express";
@@ -79,6 +77,24 @@ function baseModel(name = "") {
   const cut1 = name.split("（")[0];
   const cut2 = cut1.split("(")[0];
   return cut2.trim();
+}
+
+// 油圧ショベルのクラス並びを固定（存在するものだけ）
+function getClassesForCategory(cat) {
+  const raw = [
+    ...new Set((master.items || [])
+      .filter(i => i.category === cat)
+      .map(i => i.class)
+      .filter(Boolean))
+  ];
+  if (cat === "油圧ショベル") {
+    const desired = ["0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥"];
+    const set = new Set(raw);
+    const ordered = desired.filter(c => set.has(c));
+    const others  = raw.filter(c => !desired.includes(c));
+    return [...ordered, ...others];
+  }
+  return raw;
 }
 
 // スライドアーム：選択条件でベース行を絞り込む
@@ -186,6 +202,8 @@ function priceCard(title, p) {
       margin: "md"
     });
   }
+
+  // 👉 価格表示後に「メニューに戻る」を Quick Reply で出す
   return {
     type: "flex",
     altText: `${title} のレンタル価格`,
@@ -201,6 +219,12 @@ function priceCard(title, p) {
           { type: "box", layout: "vertical", spacing: "xs", margin: "sm", contents: rows }
         ]
       }
+    },
+    quickReply: {
+      items: [{
+        type: "action",
+        action: { type: "message", label: "メニューに戻る", text: "メニュー" }
+      }]
     }
   };
 }
@@ -398,12 +422,7 @@ async function handleText(ev) {
     if (MODEL_FIRST_CATEGORIES.has(cat)) {
       return reply(ev.replyToken, modelMenu(cat));
     }
-    const classes = [
-      ...new Set((master.items || [])
-        .filter(i => i.category === cat)
-        .map(i => i.class)
-        .filter(Boolean))
-    ];
+    const classes = getClassesForCategory(cat);
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat }));
   }
 
@@ -412,12 +431,7 @@ async function handleText(ev) {
     if (MODEL_FIRST_CATEGORIES.has(hitCat)) {
       return reply(ev.replyToken, modelMenu(hitCat));
     }
-    const classes = [
-      ...new Set((master.items || [])
-        .filter(i => i.category === hitCat)
-        .map(i => i.class)
-        .filter(Boolean))
-    ];
+    const classes = getClassesForCategory(hitCat);
     return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: hitCat }));
   }
 
@@ -449,12 +463,7 @@ async function handlePostback(ev) {
 
   // カテゴリ → クラス
   if (step === "cat") {
-    const classesAll = [
-      ...new Set((master.items || [])
-        .filter(i => i.category === params.value)
-        .map(i => i.class)
-        .filter(Boolean))
-    ];
+    const classesAll = getClassesForCategory(params.value);
     return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat: params.value }));
   }
 
@@ -564,7 +573,7 @@ async function handlePostback(ev) {
     );
   }
 
-  // --- 置換：スライド 0.7 用（track → crane or 直接 name） ---
+  // --- 置換済：スライド 0.7 用（track → crane or 直接 name：特例対応） ---
   if (step === "track") {
     const cat  = params.cat;
     const cls  = params.cls;
@@ -579,8 +588,7 @@ async function handlePostback(ev) {
       if (pose === "スタンダード" && track === "ゴムキャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
-            cat, cls, pose, track,
-            crane: "クレーン仕様"
+            cat, cls, pose, track, crane: "クレーン仕様"
           })
         );
       }
@@ -588,8 +596,7 @@ async function handlePostback(ev) {
       if (pose === "後方小旋回" && track === "ゴムキャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
-            cat, cls, pose, track,
-            crane: "クレーン無し"
+            cat, cls, pose, track, crane: "クレーン無し"
           })
         );
       }
@@ -597,8 +604,7 @@ async function handlePostback(ev) {
       if (pose === "後方小旋回" && track === "鉄キャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
-            cat, cls, pose, track,
-            crane: "クレーン仕様"
+            cat, cls, pose, track, crane: "クレーン仕様"
           })
         );
       }
