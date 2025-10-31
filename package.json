@@ -2,15 +2,14 @@
   "name": "rental-linebot",
   "version": "1.0.0",
   "type": "module",
-  "main": "app.js",
-  "scripts": {
-    "start": "node app.js",
-    "dev": "node app.js"
-  },
   "engines": {
-    "node": ">=18"
+    "node": ">=18 <26"
+  },
+  "scripts": {
+    "start": "node app.js"
   },
   "dependencies": {
+    "@line/bot-sdk": "^7.5.0",
     "express": "^4.19.2"
   }
 }
