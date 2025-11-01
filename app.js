@@ -1,607 +1,211 @@
-// app.js（全部回収版：安定版ベース + ラベル20字対策 + 色6桁 + スライド/チルトロ/スタンプ対応）
-
+// app.js 完全版 - LINEレンタル価格Bot
 import express from "express";
-import crypto from "crypto";
+import line from "@line/bot-sdk";
 import fs from "fs";
 
+// ==== LINEチャネル設定 ====
+const config = {
+  channelAccessToken: process.env.LINE_CHANNEL_ACCESS_TOKEN,
+  channelSecret: process.env.LINE_CHANNEL_SECRET,
+};
+const client = new line.Client(config);
 const app = express();
-function rawBodySaver(req, res, buf) { req.rawBody = buf; }
-app.use(express.json({ verify: rawBodySaver }));
+app.use(express.json());
 
-const CHANNEL_SECRET = process.env.LINE_CHANNEL_SECRET;
-const CHANNEL_TOKEN  = process.env.LINE_CHANNEL_ACCESS_TOKEN;
-const PORT           = process.env.PORT || 3000;
-
-// ---- master.json 読み込み ----
+// ==== レンタル価格マスタ読込 ====
 const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
 
-// ---- 設定（必要に応じて調整） ----
-const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);  // このカテゴリは「機種→クラス」の順で聞く
+// ==== サーバ起動 ====
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`サーバー起動：${PORT}`));
 
-// スライドアーム：法面加算
-const SLOPE_ADD = {
-  "0.2㎥":  { day: 2000, month:  20000 },
-  "0.25㎥": { day: 3000, month:  30000 },
-  "0.45㎥": { day: 4000, month:  40000 },
-  "0.7㎥":  { day: 5000, month:  50000 },
-};
-
-// ---- ユーティリティ ----
-function toHalfWidth(str) {
-  return String(str)
-    .replace(/[！-～]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0))
-    .replace(/　/g, " ");
-}
-function toNumber(val) {
-  if (val === null || val === undefined) return null;
-  const s = toHalfWidth(String(val)).replace(/[^0-9.-]/g, "");
-  if (!s) return null;
-  const n = Number(s);
-  return Number.isFinite(n) ? n : null;
-}
-function pickVariant(it) {
-  // masterは day/month/base/ins/env 直持ち もしくは variants[0]
-  if (it?.variants?.length > 0) {
-    const v = it.variants[0];
-    return {
-      label: v.label || "通常",
-      day: toNumber(v.day), month: toNumber(v.month),
-      base: toNumber(v.base), ins: toNumber(v.ins), env: toNumber(v.env),
-      note: v.note || it.note || ""
-    };
-  }
-  return {
-    label: "通常",
-    day: toNumber(it?.day), month: toNumber(it?.month),
-    base: toNumber(it?.base), ins: toNumber(it?.ins), env: toNumber(it?.env),
-    note: it?.note || ""
-  };
-}
-function normalize(text) {
-  const t = (text || "").trim();
-  const al = master.aliases || {};
-  // 完全一致だけでなく含有置換も軽く対応
-  for (const [alias, canon] of Object.entries(al)) {
-    if (t.includes(alias)) return t.replace(alias, canon);
-  }
-  return t;
-}
-function baseModel(name = "") {
-  const cut1 = name.split("（")[0];
-  const cut2 = cut1.split("(")[0];
-  return cut2.trim();
-}
-// ラベル20文字制限の安全丸め
-function safeLabel(s, max = 20) {
-  const arr = Array.from(String(s || ""));
-  return arr.length <= max ? String(s) : arr.slice(0, max - 1).join("") + "…";
-}
-
-// 油圧ショベルはクラス順を固定（存在するものだけ）
-function getClassesForCategory(cat) {
-  const raw = [
-    ...new Set((master.items || [])
-      .filter(i => i.category === cat)
-      .map(i => i.class)
-      .filter(Boolean))
-  ];
-  if (cat === "油圧ショベル") {
-    const desired = ["ミニショベル", "0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥", "1.4㎥"];
-    const set = new Set(raw);
-    const ordered = desired.filter(c => set.has(c));
-    const others  = raw.filter(c => !desired.includes(c));
-    return [...ordered, ...others];
-  }
-  return raw;
-}
-
-// スライドアーム：選択条件で行を絞り込み
-function pickSlideBaseItem(cls, pose, crane, track) {
-  let list = (master.items || []).filter(i => i.category === "スライドアーム" && i.class === cls);
-  if (list.length === 0) return null;
-
-  if (cls === "0.25㎥" && pose) {
-    const withPose = list.filter(i => i.name.includes(pose));
-    if (withPose.length) list = withPose;
-  }
-  if (cls === "0.45㎥" && crane) {
-    if (crane === "クレーン仕様") {
-      const onlyCrane = list.filter(i => i.name.includes("クレーン"));
-      if (onlyCrane.length) list = onlyCrane;
-    } else if (crane === "クレーン無し") {
-      const noCrane = list.filter(i => !i.name.includes("クレーン"));
-      if (noCrane.length) list = noCrane;
-    }
-  }
-  if (cls === "0.7㎥") {
-    if (pose) {
-      const byPose = list.filter(i => i.name.includes(pose));
-      if (byPose.length) list = byPose;
-    }
-    if (track) {
-      const byTrack = list.filter(i => i.name.includes(track));
-      if (byTrack.length) list = byTrack;
-    }
-    if (crane) {
-      if (crane === "クレーン仕様") {
-        const onlyCrane = list.filter(i => i.name.includes("クレーン"));
-        if (onlyCrane.length) list = onlyCrane;
-      } else if (crane === "クレーン無し") {
-        const noCrane = list.filter(i => !i.name.includes("クレーン"));
-        if (noCrane.length) list = noCrane;
-      }
-    }
-  }
-  const pref = list.find(i => i.name.includes("後方小旋回"));
-  return pref || list[0];
-}
-
-// ---- LINE署名検証・返信 ----
-function validateSignature(req) {
-  const signature = req.headers["x-line-signature"];
-  const hmac = crypto.createHmac("sha256", CHANNEL_SECRET);
-  hmac.update(req.rawBody);
-  const digest = hmac.digest("base64");
-  return signature === digest;
-}
-
-async function reply(replyToken, payload) {
-  const body = JSON.stringify({
-    replyToken,
-    messages: Array.isArray(payload) ? payload : [payload],
-  });
-  const res = await fetch("https://api.line.me/v2/bot/message/reply", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${CHANNEL_TOKEN}`
-    },
-    body
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    console.error("[LINE API ERROR]", res.status, res.statusText, text);
-  }
-}
-
-// ---- UI ----
-function priceCard(title, p) {
-  const fields = [
-    ["日決め",         toNumber(p?.day)],
-    ["月決め",         toNumber(p?.month)],
-    ["基本管理料",     toNumber(p?.base)],
-    ["保証料",         toNumber(p?.ins)],
-    ["環境サービス料", toNumber(p?.env)]
-  ];
-  const rows = fields.map(([k, n]) => ({
-    type: "box",
-    layout: "baseline",
-    contents: [
-      { type: "text", text: k, size: "sm", color: "#555555", flex: 4 },
-      { type: "text", text: n == null ? "―" : `¥${n.toLocaleString()}`, size: "sm", align: "end", flex: 6 }
-    ]
-  }));
-  if (p?.note) {
-    rows.push({
-      type: "text",
-      text: `備考：${p.note}`,
-      size: "xs",
-      color: "#888888",
-      wrap: true,
-      margin: "md"
-    });
-  }
-  return {
-    type: "flex",
-    altText: `${title} のレンタル価格`,
-    contents: {
-      type: "bubble",
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "sm",
-        contents: [
-          { type: "text", text: title, weight: "bold", size: "md", wrap: true },
-          { type: "separator", margin: "sm" },
-          { type: "box", layout: "vertical", spacing: "xs", margin: "sm", contents: rows }
-        ]
-      }
-    },
-    quickReply: {
-      items: [{
-        type: "action",
-        action: { type: "message", label: "メニューに戻る", text: "メニュー" }
-      }]
-    }
-  };
-}
-
-function quickReplyOptions(type, options, payloadKey, extra = {}) {
-  const list = (options || []).filter(Boolean);
-  return {
-    type: "text",
-    text: `「${type}」を選んでください`,
-    quickReply: {
-      items: list.slice(0, 13).map((opt, i) => ({
-        type: "action",
-        action: {
-          type: "postback",
-          label: safeLabel(opt, 20),
-          data: new URLSearchParams({ step: payloadKey, idx: String(i), ...extra }).toString(),
-          displayText: String(opt)
-        }
-      }))
-    }
-  };
-}
-
-function categoryMenu() {
-  const cats = [...new Set((master.items || []).map(i => i.category).filter(Boolean))];
-  const chunk = (arr, n) => { const out=[]; for (let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out; };
-  const groups = chunk(cats, 10);
-  const bubbles = groups.map((group, idx) => ({
-    type: "bubble",
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "md",
-      contents: [
-        { type: "text", text: `カテゴリを選択してください ${groups.length>1 ? `(${idx+1}/${groups.length})` : ""}`, weight: "bold", size: "md", wrap: true },
-        ...group.map(cat => ({
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          action: { type: "message", label: safeLabel(cat, 20), text: cat }
-        }))
-      ]
-    }
-  }));
-  return {
-    type: "flex",
-    altText: "カテゴリを選択してください",
-    contents: bubbles.length === 1 ? bubbles[0] : { type: "carousel", contents: bubbles }
-  };
-}
-
-function modelMenu(cat) {
-  const names = [...new Set(
-    (master.items || [])
-      .filter(i => i.category === cat)
-      .map(i => baseModel(i.name))
-      .filter(Boolean)
-  )];
-  const chunk = (arr, n) => { const out=[]; for (let i=0;i<arr.length;i+=n) out.push(arr.slice(i,i+n)); return out; };
-  const groups = chunk(names, 10);
-  const bubbles = groups.map((group, idx) => ({
-    type: "bubble",
-    body: {
-      type: "box",
-      layout: "vertical",
-      spacing: "md",
-      contents: [
-        { type: "text", text: `${cat}｜機種を選んでください ${groups.length>1 ? `(${idx+1}/${groups.length})` : ""}`, weight: "bold", size: "md", wrap: true },
-        ...group.map(model => ({
-          type: "button",
-          style: "secondary",
-          height: "sm",
-          action: {
-            type: "postback",
-            label: safeLabel(model, 20),
-            data: new URLSearchParams({ step: "model", cat, model }).toString(),
-            displayText: model
-          }
-        }))
-      ]
-    }
-  }));
-  return {
-    type: "flex",
-    altText: `${cat} の機種を選択`,
-    contents: bubbles.length === 1 ? bubbles[0] : { type: "carousel", contents: bubbles }
-  };
-}
-
-function rootMenu() {
-  return {
-    type: "flex",
-    altText: "メニュー",
-    contents: {
-      type: "bubble",
-      body: {
-        type: "box",
-        layout: "vertical",
-        spacing: "md",
-        contents: [
-          { type: "text", text: "メニュー", weight: "bold", size: "lg", wrap: true },
-          {
-            type: "button",
-            style: "primary",
-            color: "#1DB446",
-            height: "md",
-            action: {
-              type: "postback",
-              label: "レンタル金額を知りたい",
-              data: new URLSearchParams({ step: "action", value: "price" }).toString(),
-              displayText: "レンタル金額を知りたい"
-            }
-          },
-          { type: "separator", margin: "md" },
-          {
-            type: "text",
-            text: "※「レンタル金額を知りたい」を押すとカテゴリ選択に進みます。",
-            size: "xs",
-            color: "#888888",
-            wrap: true
-          }
-        ]
-      }
-    }
-  };
-}
-
-// ---- Webhook ----
-app.post("/webhook", async (req, res) => {
-  if (!validateSignature(req)) return res.status(401).end();
-  const events = req.body.events || [];
-
-  for (const ev of events) {
-    try {
-      if (ev.type === "follow") {
-        await reply(ev.replyToken, rootMenu());
-        continue;
-      }
-      if (ev.type === "message" && ev.message.type === "text") {
-        await handleText(ev);
-      } else if (ev.type === "postback") {
-        await handlePostback(ev);
-      }
-    } catch (e) {
-      console.error("[ERR]", e);
-      await reply(ev.replyToken, { type: "text", text: "エラーが発生しました。" });
-    }
-  }
+// ==== LINEイベント受信 ====
+app.post("/webhook", (req, res) => {
+  Promise.all(req.body.events.map(handleEvent)).catch(console.error);
   res.status(200).end();
 });
 
-// ---- ハンドラ ----
-async function handleText(ev) {
-  const textRaw = ev.message.text || "";
-  const text0 = normalize(textRaw);
-  const text = text0;
-  const cats = [...new Set((master.items || []).map(i => i.category).filter(Boolean))];
+// ==== イベント処理 ====
+async function handleEvent(event) {
+  if (event.type !== "message" || event.message.type !== "text") return;
+  const text = event.message.text;
+  const replyToken = event.replyToken;
 
-  // ショートカット
-  if (text === "メニュー") return reply(ev.replyToken, rootMenu());
-  if (text === "レンタル金額を知りたい") return reply(ev.replyToken, categoryMenu());
-
-  // エイリアス（スライド/テレスコ → スライドアームのクラスへ）
-  if (/(^|.*)(スライド|テレスコ)(.*|$)/.test(text)) {
-    const classes = [...new Set((master.items || []).filter(i => i.category === "スライドアーム").map(i => i.class).filter(Boolean))];
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: "スライドアーム" }));
-  }
-
-  // カテゴリ名が直接来たらクラス選択（または機種選択）
-  if (cats.includes(text)) {
-    const cat = text;
-    if (MODEL_FIRST_CATEGORIES.has(cat)) {
-      return reply(ev.replyToken, modelMenu(cat));
-    }
-    const classes = getClassesForCategory(cat);
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat }));
-  }
-
-  // 一致しない場合はメニューへ
-  return reply(ev.replyToken, rootMenu());
-}
-
-async function handlePostback(ev) {
-  const params = Object.fromEntries(new URLSearchParams(ev.postback.data || ""));
-  const step = params.step;
-
-  // 最上位アクション
-  if (step === "action" && params.value === "price") {
-    return reply(ev.replyToken, categoryMenu());
-  }
-
-  // 機種選択
-  if (step === "model") {
-    const cat = params.cat;
-    const model = params.model;
-    const classesAll = [
-      ...new Set((master.items || [])
-        .filter(i => i.category === cat && baseModel(i.name) === model)
-        .map(i => i.class)
-        .filter(Boolean))
+  // --- トップメニュー ---
+  if (text === "レンタル金額を知りたい") {
+    const categories = [
+      "油圧ショベル",
+      "スライドアーム",
+      "ロングアーム",
+      "木材破砕機",
+      "マルチャー",
+      "スタンプクラッシャー",
+      "林業用機械",
+      "チルトローテーター",
+      "クローラーフォーク",
+      "キャリアダンプ",
+      "ブルドーザー",
+      "タイヤショベル",
+      "コンパクトトラックローダー",
+      "資材・備品",
     ];
-    return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat, model }));
+    const items = categories.map(c => ({
+      type: "action",
+      action: { type: "message", label: c, text: c },
+    }));
+
+    return client.replyMessage(replyToken, {
+      type: "text",
+      text: "カテゴリを選択してください👇",
+      quickReply: { items },
+    });
   }
 
-  // カテゴリ → クラス
-  if (step === "cls") {
-    const cat = params.cat;
-    const classesAll = getClassesForCategory(cat);
-    const cls = params.idx != null ? classesAll[Number(params.idx)] : params.value;
-
-    // ★ 即価格表示カテゴリ（チルトローテーター / スタンプクラッシャー）
-    if (["チルトローテーター", "スタンプクラッシャー"].includes(cat)) {
-      const items = (master.items || []).filter(i => i.category === cat && i.class === cls);
-      if (items.length === 0) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      const it = items[0];
-      const v = pickVariant(it);
-      const title = `${cat} ${cls}｜${baseModel(it.name)}`;
-      return reply(ev.replyToken, priceCard(title, v));
-    }
-
-    // ★ 林業用機械の特例：グラップルソーはクラス選択 → 即価格
-    if (params.model && params.model.includes("グラップルソー")) {
-      const items = (master.items || []).filter(i => i.category === "林業用機械" && baseModel(i.name) === "グラップルソー" && i.class === cls);
-      if (items.length === 0) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      const it = items[0];
-      const v = pickVariant(it);
-      const title = `林業用機械 ${cls}｜グラップルソー`;
-      return reply(ev.replyToken, priceCard(title, v));
-    }
-
-    // ★ フェラバン 0.25㎥ は排土板付き固定
-    if (params.model && params.model.includes("フェラバン") && cls === "0.25㎥") {
-      const items = (master.items || []).filter(i => i.category === "林業用機械" && baseModel(i.name).includes("フェラバンチャーザウルスロボ") && i.class === cls);
-      if (items.length === 0) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      const it = items.find(i => i.name.includes("排土板")) || items[0];
-      const v = pickVariant(it);
-      const title = `林業用機械 ${cls}｜${baseModel(it.name)}（排土板付き）`;
-      return reply(ev.replyToken, priceCard(title, v));
-    }
-
-    // ★ スライドアーム分岐
-    if (cat === "スライドアーム") {
-      if (cls === "0.25㎥") {
-        return reply(ev.replyToken, quickReplyOptions("タイプ", ["後方小旋回", "超小旋回"], "pose", { cat, cls }));
-      }
-      if (cls === "0.45㎥") {
-        return reply(ev.replyToken, quickReplyOptions("クレーン", ["クレーン仕様", "クレーン無し"], "crane", { cat, cls }));
-      }
-      if (cls === "0.7㎥") {
-        return reply(ev.replyToken, quickReplyOptions("タイプ", ["スタンダード", "後方小旋回"], "pose70", { cat, cls }));
-      }
-      // その他クラス：バケット/法面
-      return reply(ev.replyToken, quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls }));
-    }
-
-    // 通常カテゴリ：仕様一覧
-    const namesAll = [
-      ...new Set((master.items || [])
-        .filter(i =>
-          i.category === cat &&
-          i.class === cls &&
-          (params.model ? baseModel(i.name) === params.model : true)
-        )
-        .map(i => i.name)
-        .filter(Boolean))
-    ];
-    return reply(ev.replyToken, quickReplyOptions("仕様", namesAll, "name", { cat, cls, model: params.model }));
+  // --- スタンプクラッシャー ---
+  if (text === "スタンプクラッシャー") {
+    const machines = ["SC400", "SC600", "SC850Pro"];
+    return replyQuick(replyToken, machines, "スタンプクラッシャー");
+  }
+  if (text.includes("スタンプクラッシャー")) {
+    const item = master.items.find(i =>
+      i.category === "スタンプクラッシャー" && text.includes(i.name)
+    );
+    if (item) return replyPriceCard(replyToken, item);
   }
 
-  // --- スライド 0.25：pose → name ---
-  if (step === "pose") {
-    const cat = params.cat, cls = params.cls;
-    const poses = ["後方小旋回", "超小旋回"];
-    const pose = params.idx != null ? poses[Number(params.idx)] : params.value;
-    return reply(ev.replyToken, quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, pose }));
+  // --- マルチャー ---
+  if (text === "マルチャー") {
+    const classes = ["0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥"];
+    return replyQuick(replyToken, classes, "マルチャー");
+  }
+  if (text.includes("マルチャー")) {
+    const item = master.items.find(i =>
+      i.category === "マルチャー" && text.includes(i.class)
+    );
+    if (item) return replyPriceCard(replyToken, item);
   }
 
-  // --- スライド 0.7：pose70 → track ---
-  if (step === "pose70") {
-    const cat = params.cat, cls = params.cls;
-    const poses = ["スタンダード", "後方小旋回"];
-    const pose = params.idx != null ? poses[Number(params.idx)] : params.value;
-    return reply(ev.replyToken, quickReplyOptions("キャタ", ["鉄キャタ", "ゴムキャタ"], "track", { cat, cls, pose }));
+  // --- スライドアーム ---
+  if (text === "スライドアーム") {
+    const classes = ["0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥"];
+    return replyQuick(replyToken, classes, "スライドアーム");
   }
 
-  // --- スライド 0.45/0.7：crane → name ---
-  if (step === "crane") {
-    const cat = params.cat, cls = params.cls;
-    const cranes = ["クレーン仕様", "クレーン無し"];
-    const crane = params.idx != null ? cranes[Number(params.idx)] : params.value;
-    return reply(ev.replyToken, quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, crane, pose: params.pose, track: params.track }));
+  if (text.includes("スライドアーム")) {
+    const item = master.items.find(i =>
+      i.category === "スライドアーム" &&
+      text.includes(i.class)
+    );
+    if (item) return replyPriceCard(replyToken, item);
   }
 
-  // --- スライド 0.7：track → crane or 直接 name（特例） ---
-  if (step === "track") {
-    const cat  = params.cat, cls = params.cls, pose = params.pose;
-    const tracks = ["鉄キャタ", "ゴムキャタ"];
-    const track  = params.idx != null ? tracks[Number(params.idx)] : params.value;
-
-    // 特例
-    if (cat === "スライドアーム" && cls === "0.7㎥") {
-      if (pose === "スタンダード" && track === "ゴムキャタ") {
-        return reply(ev.replyToken, quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, pose, track, crane: "クレーン仕様" }));
-      }
-      if (pose === "後方小旋回" && track === "ゴムキャタ") {
-        return reply(ev.replyToken, quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, pose, track, crane: "クレーン無し" }));
-      }
-      if (pose === "後方小旋回" && track === "鉄キャタ") {
-        return reply(ev.replyToken, quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls, pose, track, crane: "クレーン仕様" }));
-      }
-    }
-    // 通常
-    return reply(ev.replyToken, quickReplyOptions("クレーン", ["クレーン仕様", "クレーン無し"], "crane", { cat, cls, pose, track }));
+  // --- 林業用機械 ---
+  if (text === "林業用機械") {
+    const machines = ["フェラバンチャーザウルスロボ", "グラップルソー", "林業用グラップル"];
+    return replyQuick(replyToken, machines, "林業用機械");
+  }
+  if (text.includes("林業用機械")) {
+    const item = master.items.find(i =>
+      i.category === "林業用機械" && text.includes(i.name)
+    );
+    if (item) return replyPriceCard(replyToken, item);
   }
 
-  // ---- 仕様選択 → 価格 ----
-  if (step === "name") {
-    const cat = params.cat, cls = params.cls;
-
-    if (cat === "スライドアーム") {
-      const choices = ["バケット", "法面付き"];
-      const chosen = params.idx != null ? choices[Number(params.idx)] : params.value;
-
-      const pose25 = (cls === "0.25㎥") ? params.pose : undefined;
-      const crane45 = (cls === "0.45㎥") ? params.crane : undefined;
-      const pose70  = (cls === "0.7㎥")  ? params.pose  : undefined;
-      const track70 = (cls === "0.7㎥")  ? params.track : undefined;
-      const crane70 = (cls === "0.7㎥")  ? params.crane : undefined;
-
-      const pose  = pose25 || pose70;
-      const crane = crane45 || crane70;
-      const track = track70;
-
-      const it = pickSlideBaseItem(cls, pose, crane, track);
-      if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-
-      const v = pickVariant(it);
-      if (chosen === "法面付き") {
-        const add = SLOPE_ADD[cls] || { day: 0, month: 0 };
-        v.day   = (v.day ?? 0) + add.day;
-        v.month = (v.month ?? 0) + add.month;
-      }
-
-      const tags = [];
-      if (pose)  tags.push(pose);
-      if (track) tags.push(track);
-      if (crane) tags.push(crane);
-      const tagStr = tags.length ? tags.join("・") + "｜" : "";
-
-      const title = `スライドアーム ${cls}｜${tagStr}${baseModel(it.name)}（${chosen}）`;
-      return reply(ev.replyToken, priceCard(title, v));
-    }
-
-    // その他カテゴリ
-    const namesAll = [
-      ...new Set((master.items || [])
-        .filter(i =>
-          i.category === cat &&
-          i.class === cls &&
-          (params.model ? baseModel(i.name) === params.model : true)
-        )
-        .map(i => i.name)
-        .filter(Boolean))
-    ];
-    const name = params.idx != null ? namesAll[Number(params.idx)] : params.value;
-
-    const items = (master.items || []).filter(i => i.category === cat && i.class === cls && i.name === name);
-    if (items.length === 0) {
-      console.warn("[NO MATCH]", params);
-      return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-    }
-    const it = items[0];
-    const v = pickVariant(it);
-    const title = `${cat} ${cls}｜${name}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
-    return reply(ev.replyToken, priceCard(title, v));
+  // --- チルトローテーター ---
+  if (text === "チルトローテーター") {
+    const classes = ["0.1㎥", "0.25㎥", "0.45㎥"];
+    return replyQuick(replyToken, classes, "チルトローテーター");
   }
-}
+  if (text.includes("チルトローテーター")) {
+    const item = master.items.find(i =>
+      i.category === "チルトローテーター" && text.includes(i.class)
+    );
+    if (item) return replyPriceCard(replyToken, item);
+  }
 
-// ---- 診断API（任意） ----
-app.get("/diag", (req, res) => {
-  const { cat, cls, name } = req.query;
-  const items = (master.items || []).filter(i =>
-    i.category === cat && i.class === cls && (name ? i.name === name : true)
+  // --- クローラーフォーク ---
+  if (text === "クローラーフォーク") {
+    const types = ["普通サヤ", "長サヤ"];
+    return replyQuick(replyToken, types, "クローラーフォーク");
+  }
+  if (text.includes("クローラーフォーク")) {
+    const item = master.items.find(i =>
+      i.category === "クローラーフォーク" && text.includes(i.name)
+    );
+    if (item) return replyPriceCard(replyToken, item);
+  }
+
+  // --- 木材破砕機 ---
+  if (text === "木材破砕機") {
+    const types = ["SR3100", "MC2000", "MC4000/MC6000"];
+    return replyQuick(replyToken, types, "木材破砕機");
+  }
+  if (text.includes("木材破砕機")) {
+    const item = master.items.find(i =>
+      i.category === "木材破砕機" && text.includes(i.name)
+    );
+    if (item) return replyPriceCard(replyToken, item);
+  }
+
+  // --- 資材・備品 ---
+  if (text === "資材・備品") {
+    const items = ["除湿器ドライマックス", "スポットクーラー", "アルミ代車", "鉄板3×6", "鉄板5×10", "鉄板5×20"];
+    return replyQuick(replyToken, items, "資材・備品");
+  }
+  if (text.includes("資材・備品")) {
+    const item = master.items.find(i =>
+      i.category === "資材・備品" && text.includes(i.name)
+    );
+    if (item) return replyPriceCard(replyToken, item);
+  }
+
+  // --- その他カテゴリの共通処理 ---
+  const item = master.items.find(i =>
+    text.includes(i.category) && (text.includes(i.name) || text.includes(i.class))
   );
-  if (items.length === 0) return res.json({ ok: false, reason: "no_match", query: { cat, cls, name } });
-  const it = items[0];
-  const v = pickVariant(it);
-  res.json({ ok: true, item: { category: it.category, class: it.class, name: it.name }, variant: v });
-});
+  if (item) return replyPriceCard(replyToken, item);
+}
 
-// ---- 起動 ----
-app.get("/", (_, res) => res.send("LINE Bot OK"));
-app.listen(PORT, () => console.log("Server started on", PORT));
+// === 共通関数 ===
+
+// 🔹 クイックリプライ生成
+function replyQuick(token, list, prefix) {
+  const items = list.map(v => ({
+    type: "action",
+    action: { type: "message", label: v, text: `${prefix} ${v}` },
+  }));
+  return client.replyMessage(token, {
+    type: "text",
+    text: "選択してください👇",
+    quickReply: { items },
+  });
+}
+
+// 🔹 金額カード生成
+function replyPriceCard(token, item) {
+  const v = item.variants[0];
+  const body = [
+    { type: "text", text: `【${item.category}】${item.name} ${item.class || ""}`, weight: "bold", size: "md" },
+    { type: "text", text: `日決め：¥${v.day.toLocaleString()}` },
+    { type: "text", text: `月決め：¥${v.month.toLocaleString()}` },
+    { type: "text", text: `基本管理料：¥${v.base.toLocaleString()}` },
+    { type: "text", text: `保証料：¥${v.ins.toLocaleString()}` },
+    { type: "text", text: `環境サービス料：¥${v.env.toLocaleString()}` }
+  ];
+  if (v.note) body.push({ type: "text", text: `備考：${v.note}` });
+
+  return client.replyMessage(token, [
+    {
+      type: "flex",
+      altText: `${item.name} のレンタル価格`,
+      contents: { type: "bubble", body: { type: "box", layout: "vertical", contents: body } }
+    },
+    {
+      type: "text",
+      text: "🔁 メニューに戻る",
+      quickReply: {
+        items: [{ type: "action", action: { type: "message", label: "メニューへ", text: "レンタル金額を知りたい" } }]
+      }
+    }
+  ]);
+}
