@@ -72,12 +72,12 @@ function priceCard(title, p) {
     type: "box",
     layout: "baseline",
     contents: [
-      { type: "text", text: k, size: "sm", color: "#555", flex: 4 },
+      { type: "text", text: k, size: "sm", color: "#555555", flex: 4 },
       { type: "text", text: n == null ? "―" : `¥${n.toLocaleString()}`, size: "sm", align: "end", flex: 6 }
     ]
   }));
   if (p.note) {
-    rows.push({ type: "text", text: `備考：${p.note}`, size: "xs", color: "#888", wrap: true, margin: "md" });
+    rows.push({ type: "text", text: `備考：${p.note}`, size: "xs", color: "#888888", wrap: true, margin: "md" });
   }
   return {
     type: "flex",
