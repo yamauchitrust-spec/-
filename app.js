@@ -494,6 +494,20 @@ async function handlePostback(ev) {
     const cls = params.val || (params.idx != null ? classesAll[Number(params.idx)] : null);
     if (!cls) return reply(ev.replyToken, { type: "text", text: "クラス選択に失敗しました。" });
 
+    // ★特例：チルトローテーターは仕様をスキップして即価格表示
+    if (cat === "チルトローテーター") {
+      const items = (master.items || []).filter(i =>
+        i.category === cat && (cls ? i.class === cls : true)
+      );
+      if (items.length === 0) {
+        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+      }
+      const it = items[0];                 // 代表行（先頭）を採用。必要なら基準名で優先度付け可
+      const v  = pickVariant(it);
+      const title = `${cat}${cls ? " " + cls : ""}｜${baseModel(it.name)}`;
+      return reply(ev.replyToken, priceCard(title, v));
+    }
+
     // 特例1：グラップルソー（林業用機械）→ 即価格
     if (cat === "林業用機械" && (params.model === "グラップルソー" || params.model?.includes("グラップルソー"))) {
       const items = (master.items || []).filter(i =>
