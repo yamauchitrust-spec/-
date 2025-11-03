@@ -681,13 +681,6 @@ async function handlePostback(ev) {
   }
 }
 
-// 特例：クローラーフォーク → クラススキップして仕様選択へ
-if (step === "cls" && params.cat === "クローラーフォーク") {
-  return reply(ev.replyToken,
-    quickReplyOptions("仕様", ["普通爪", "長爪"], "name", { cat: "クローラーフォーク" })
-  );
-}
-
 // ===== 診断API =====
 app.get("/diag", (req, res) => {
   const { cat, cls, name } = req.query;
