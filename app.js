@@ -1,7 +1,7 @@
 // app.js（最上位 → カテゴリ → 機種 → クラス → 価格カード）
-// idx依存をやめ、postbackに実値"val"を載せて受信側はval優先で照合する安定版。
-// 追加: クローラーフォークはクラス選択をスキップして仕様（普通サヤ/長サヤ）に直行
-// 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
+// 安定版：postback は idx 依存をやめ "val"（実値）で受け渡し。
+// 追加：クローラーフォークはクラス選択をスキップして仕様（二択）へ直行。
+// 追加：油圧ショベルのクラス並びで「ミニショベル」を先頭に固定。
 
 import express from "express";
 import crypto from "crypto";
@@ -69,7 +69,7 @@ function baseModel(name = "") {
   return cut2.trim();
 }
 
-// 油圧ショベルのクラス並びを固定（存在するものだけ）※ミニショベルを先頭に
+// 油圧ショベルのクラス並びを固定（存在するものだけ）＋ ミニショベルを先頭
 function getClassesForCategory(cat) {
   const raw = [
     ...new Set((master.items || [])
@@ -193,6 +193,7 @@ function priceCard(title, p) {
     });
   }
 
+  // 価格表示後に「メニューに戻る」を Quick Reply で出す
   return {
     type: "flex",
     altText: `${title} のレンタル価格`,
@@ -455,6 +456,14 @@ async function handlePostback(ev) {
   // カテゴリ → クラス
   if (step === "cat") {
     const catVal = params.val || params.value;
+
+    // ★ 特例：クローラーフォークはクラス選択をスキップして仕様へ直行
+    if (catVal === "クローラーフォーク") {
+      return reply(ev.replyToken,
+        quickReplyOptions("仕様", ["普通サヤ", "長サヤ"], "name", { cat: "クローラーフォーク" })
+      );
+    }
+
     const classesAll = getClassesForCategory(catVal);
     return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat: catVal }));
   }
@@ -462,14 +471,6 @@ async function handlePostback(ev) {
   // クラス選択 → 仕様（特例含む）
   if (step === "cls") {
     const cat = params.cat;
-
-    // ★特例: クローラーフォークはクラススキップして仕様へ
-    if (cat === "クローラーフォーク") {
-      return reply(ev.replyToken,
-        quickReplyOptions("仕様", ["普通サヤ", "長サヤ"], "name", { cat })
-      );
-    }
-
     const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && (params.model ? baseModel(i.name) === params.model : true))
@@ -477,9 +478,7 @@ async function handlePostback(ev) {
         .filter(Boolean))
     ];
     const cls = params.val || (params.idx != null ? classesAll[Number(params.idx)] : null);
-    if (!cls && cat !== "クローラーフォーク") {
-      return reply(ev.replyToken, { type: "text", text: "クラス選択に失敗しました。" });
-    }
+    if (!cls) return reply(ev.replyToken, { type: "text", text: "クラス選択に失敗しました。" });
 
     // 特例1：グラップルソー（林業用機械）→ 即価格
     if (cat === "林業用機械" && (params.model === "グラップルソー" || params.model?.includes("グラップルソー"))) {
@@ -516,19 +515,16 @@ async function handlePostback(ev) {
     // スライドアームの分岐
     if (cat === "スライドアーム") {
       if (cls === "0.25㎥") {
-        // 後方/超小 → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("タイプ", ["後方小旋回", "超小旋回"], "pose", { cat, cls })
         );
       }
       if (cls === "0.45㎥") {
-        // クレーン仕様/無し → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("クレーン", ["クレーン仕様", "クレーン無し"], "crane", { cat, cls })
         );
       }
       if (cls === "0.7㎥") {
-        // スタンダード/後方 → 鉄/ゴム →（特例でスキップ可）→ クレーン → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("タイプ", ["スタンダード", "後方小旋回"], "pose70", { cat, cls })
         );
@@ -544,7 +540,7 @@ async function handlePostback(ev) {
       ...new Set((master.items || [])
         .filter(i =>
           i.category === cat &&
-          (cls ? i.class === cls : true) &&
+          i.class === cls &&
           (params.model ? baseModel(i.name) === params.model : true)
         )
         .map(i => i.name)
@@ -579,7 +575,7 @@ async function handlePostback(ev) {
     );
   }
 
-  // --- 置換済：スライド 0.7 用（track → crane or 直接 name：特例対応） ---
+  // --- スライド 0.7 用（track → crane or 直接 name：特例対応） ---
   if (step === "track") {
     const cat  = params.cat;
     const cls  = params.cls;
@@ -589,9 +585,8 @@ async function handlePostback(ev) {
     const track  = params.val || (params.idx != null ? tracks[Number(params.idx)] : null);
     if (!track) return reply(ev.replyToken, { type: "text", text: "キャタ選択に失敗しました。" });
 
-    // ★ 0.7㎥ の特例分岐
+    // 特例分岐
     if (cat === "スライドアーム" && cls === "0.7㎥") {
-      // 1) スタンダード × ゴムキャタ → クレーン仕様のみ
       if (pose === "スタンダード" && track === "ゴムキャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
@@ -599,7 +594,6 @@ async function handlePostback(ev) {
           })
         );
       }
-      // 2) 後方小旋回 × ゴムキャタ → クレーン無しのみ
       if (pose === "後方小旋回" && track === "ゴムキャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
@@ -607,7 +601,6 @@ async function handlePostback(ev) {
           })
         );
       }
-      // 3) 後方小旋回 × 鉄キャタ → クレーン仕様のみ
       if (pose === "後方小旋回" && track === "鉄キャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
@@ -623,7 +616,7 @@ async function handlePostback(ev) {
     );
   }
 
-  // --- 追加：スライド 0.45/0.7 用（crane → name） ---
+  // --- スライド 0.45/0.7 用（crane → name） ---
   if (step === "crane") {
     const cat = params.cat;
     const cls = params.cls;
@@ -646,7 +639,6 @@ async function handlePostback(ev) {
       const chosen = params.val; // "バケット" or "法面付き"
       if (!chosen) return reply(ev.replyToken, { type: "text", text: "仕様選択に失敗しました。" });
 
-      // 0.25：pose、0.45：crane、0.7：pose/track/crane を反映
       const pose25 = (cls === "0.25㎥") ? params.pose : undefined;
       const crane45 = (cls === "0.45㎥") ? params.crane : undefined;
       const pose70  = (cls === "0.7㎥")  ? params.pose  : undefined;
@@ -679,13 +671,12 @@ async function handlePostback(ev) {
 
     // 通常（非スライド）
     const name = params.val || params.value;
-    let items = (master.items || []).filter(i =>
-      i.category === cat && (cls ? i.class === cls : true) && i.name === name
+    const items = (master.items || []).filter(i =>
+      i.category === cat && i.class === cls && i.name === name
     );
-
     if (items.length === 0) {
       // 念のための緩和（前方/含有/baseModel）
-      const all = (master.items || []).filter(i => i.category === cat && (cls ? i.class === cls : true));
+      const all = (master.items || []).filter(i => i.category === cat && i.class === cls);
       let it = all.find(i => i.name === name)
         || all.find(i => i.name?.startsWith(name))
         || all.find(i => i.name?.includes(name))
@@ -695,13 +686,12 @@ async function handlePostback(ev) {
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
       }
       const v = pickVariant(it);
-      const title = `${cat}${cls ? " " + cls : ""}｜${it.name}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
+      const title = `${cat} ${cls}｜${it.name}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
       return reply(ev.replyToken, priceCard(title, v));
     }
-
     const it = items[0];
     const v = pickVariant(it);
-    const title = `${cat}${cls ? " " + cls : ""}｜${name}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
+    const title = `${cat} ${cls}｜${name}${v.label && v.label !== "通常" ? "・" + v.label : ""}`;
     return reply(ev.replyToken, priceCard(title, v));
   }
 }
@@ -709,7 +699,7 @@ async function handlePostback(ev) {
 // ===== 診断API =====
 app.get("/diag", (req, res) => {
   const { cat, cls, name } = req.query;
-  const items = (master.items || []).filter(i => i.category === cat && (cls ? i.class === cls : true) && i.name === name);
+  const items = (master.items || []).filter(i => i.category === cat && i.class === cls && i.name === name);
   if (items.length === 0) return res.json({ ok: false, reason: "no_match", query: { cat, cls, name } });
   const it = items[0];
   const v = pickVariant(it);
