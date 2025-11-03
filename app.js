@@ -77,7 +77,7 @@ function getClassesForCategory(cat) {
       .filter(Boolean))
   ];
   if (cat === "油圧ショベル") {
-    const desired = ["0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥"];
+    const desired = ["ミニショベル","0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥"];
     const set = new Set(raw);
     const ordered = desired.filter(c => set.has(c));
     const others  = raw.filter(c => !desired.includes(c));
