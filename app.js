@@ -2,6 +2,7 @@
 // idx依存をやめ、postbackに実値"val"を載せて受信側はval優先で照合する安定版。
 // 追加: クローラーフォークはクラス選択をスキップして仕様（普通サヤ/長サヤ）に直行
 // 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
+// 追加: チルトローテーター と マルチャー はクラス選択後に仕様スキップして即価格表示
 
 import express from "express";
 import crypto from "crypto";
@@ -494,7 +495,7 @@ async function handlePostback(ev) {
     const cls = params.val || (params.idx != null ? classesAll[Number(params.idx)] : null);
     if (!cls) return reply(ev.replyToken, { type: "text", text: "クラス選択に失敗しました。" });
 
-    // ★特例：チルトローテーターは仕様をスキップして即価格表示
+    // ★特例：チルトローテーターは仕様スキップして即価格
     if (cat === "チルトローテーター") {
       const items = (master.items || []).filter(i =>
         i.category === cat && (cls ? i.class === cls : true)
@@ -502,7 +503,21 @@ async function handlePostback(ev) {
       if (items.length === 0) {
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
       }
-      const it = items[0];                 // 代表行（先頭）を採用。必要なら基準名で優先度付け可
+      const it = items[0];
+      const v  = pickVariant(it);
+      const title = `${cat}${cls ? " " + cls : ""}｜${baseModel(it.name)}`;
+      return reply(ev.replyToken, priceCard(title, v));
+    }
+
+    // ★特例：マルチャーも仕様スキップして即価格
+    if (cat === "マルチャー") {
+      const items = (master.items || []).filter(i =>
+        i.category === cat && (cls ? i.class === cls : true)
+      );
+      if (items.length === 0) {
+        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+      }
+      const it = items[0];
       const v  = pickVariant(it);
       const title = `${cat}${cls ? " " + cls : ""}｜${baseModel(it.name)}`;
       return reply(ev.replyToken, priceCard(title, v));
