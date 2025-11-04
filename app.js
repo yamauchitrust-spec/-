@@ -1,10 +1,8 @@
 // app.js（最上位 → カテゴリ → 機種 → クラス → 価格カード）
 // idx依存をやめ、postbackに実値"val"を載せて受信側はval優先で照合する安定版。
-// 追加: クローラーフォークはクラス選択をスキップして仕様（普通サヤ/長サヤ）に直行
+// 追加: クローラーフォーク/ラジコン草刈機はクラス選択をスキップ
+// 追加: チルトローテータ/マルチャー/クサカルゴンは仕様（name）をスキップ
 // 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
-// 追加: ラジコン草刈機／コンパクトトラックローダー もクラススキップで仕様へ直行
-// 追加: チルトローテーター／マルチャー／クサカルゴン は仕様スキップ（クラス選択後に即価格）
-// 追加: 設備備品の「鉄板」はクラスから除外し、仕様（name）として提示
 
 import express from "express";
 import crypto from "crypto";
@@ -24,19 +22,11 @@ const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
 // ---- “まず機種を選ぶ”カテゴリ ----
 const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
 
-// ---- クラススキップ対象（カテゴリ名）
-const CLASS_SKIP_CATEGORIES = new Set([
-  "クローラーフォーク",
-  "ラジコン草刈機",
-  "コンパクトトラックローダー",
-]);
+// ---- クラススキップ（クローラーフォークは固定二択、ラジコン草刈機は仕様へ直行）----
+const CLASS_SKIP_CATEGORIES = new Set(["クローラーフォーク", "ラジコン草刈機"]);
 
-// ---- 仕様スキップ対象（モデル名ベース名）
-const SPEC_SKIP_MODELS = new Set([
-  "チルトローテーター",
-  "マルチャー",
-  "クサカルゴン",
-]);
+// ---- 仕様スキップ（クラスを選んだら即価格表示）----
+const SPEC_SKIP_CATEGORIES = new Set(["チルトローテータ", "マルチャー", "クサカルゴン"]);
 
 // ---- スライドアーム 法面加算 ----
 const SLOPE_ADD = {
@@ -88,18 +78,12 @@ function baseModel(name = "") {
 
 // 油圧ショベルのクラス並びを固定（存在するものだけ）※ミニショベルを先頭に
 function getClassesForCategory(cat) {
-  let raw = [
+  const raw = [
     ...new Set((master.items || [])
       .filter(i => i.category === cat)
       .map(i => i.class)
       .filter(Boolean))
   ];
-
-  // 設備備品: 「鉄板」はクラスから外す（仕様で出すため）
-  if (cat === "設備備品") {
-    raw = raw.filter(c => c !== "鉄板");
-  }
-
   if (cat === "油圧ショベル") {
     const desired = ["ミニショベル", "0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥"];
     const set = new Set(raw);
@@ -108,38 +92,6 @@ function getClassesForCategory(cat) {
     return [...ordered, ...others];
   }
   return raw;
-}
-
-// 指定カテゴリ/モデル/クラスで仕様（name）候補を取得
-function getNames({ cat, model, cls }) {
-  let list = (master.items || []).filter(i => i.category === cat);
-  if (model) list = list.filter(i => baseModel(i.name) === model);
-  if (cls)   list = list.filter(i => i.class === cls);
-  return [...new Set(list.map(i => i.name).filter(Boolean))];
-}
-
-// 設備備品の鉄板だけの仕様一覧を取得（class="鉄板" 優先、なければ name に鉄板を含む）
-function getIronPlateNames() {
-  let list = (master.items || []).filter(i => i.category === "設備備品" && i.class === "鉄板");
-  if (list.length === 0) {
-    list = (master.items || []).filter(i =>
-      i.category === "設備備品" && (i.name?.includes("鉄板") || baseModel(i.name)?.includes("鉄板"))
-    );
-  }
-  return [...new Set(list.map(i => i.name).filter(Boolean))];
-}
-
-// 仕様スキップ時に最も合う1件を選ぶ
-function pickSingleItem({ cat, model, cls }) {
-  let list = (master.items || []).filter(i => i.category === cat);
-  if (model) list = list.filter(i => baseModel(i.name) === model);
-  if (cls)   list = list.filter(i => i.class === cls);
-  if (list.length === 0) return null;
-
-  const pref = list.find(i => /標準|通常|ベース/.test(i.name))
-           || list.find(i => i.name.includes("後方小旋回"))
-           || list[0];
-  return pref;
 }
 
 // スライドアーム：選択条件でベース行を絞り込む
@@ -248,7 +200,6 @@ function priceCard(title, p) {
     });
   }
 
-  // 価格表示後に「メニューに戻る」を Quick Reply で出す
   return {
     type: "flex",
     altText: `${title} のレンタル価格`,
@@ -467,26 +418,22 @@ async function handleText(ev) {
   if (cats.includes(text)) {
     const cat = text;
 
-    // ★ クラススキップ：カテゴリ直下で仕様へ
+    // ★ クラススキップ系
     if (CLASS_SKIP_CATEGORIES.has(cat)) {
       if (cat === "クローラーフォーク") {
+        // 固定二択
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["普通サヤ", "長サヤ"], "name", { cat })
         );
-      } else {
-        const names = getNames({ cat });
-        return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat }));
       }
-    }
-
-    // ★ 設備備品：鉄板は仕様で提示 + 通常のクラス選択（鉄板を除外）
-    if (cat === "設備備品") {
-      const iron = getIronPlateNames();
-      const classes = getClassesForCategory(cat); // ここは既に「鉄板」を除外済み
-      return reply(ev.replyToken, [
-        ...(iron.length ? [quickReplyOptions("仕様（鉄板）", iron, "name", { cat })] : []),
-        quickReplyOptions("クラス", classes, "cls", { cat })
-      ]);
+      // ラジコン草刈機：カテゴリ内の仕様名をそのまま提示
+      const names = [
+        ...new Set((master.items || [])
+          .filter(i => i.category === cat)
+          .map(i => i.name)
+          .filter(Boolean))
+      ];
+      return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat }));
     }
 
     if (MODEL_FIRST_CATEGORIES.has(cat)) {
@@ -522,7 +469,6 @@ async function handlePostback(ev) {
   if (step === "model") {
     const cat = params.cat;
     const model = params.val || params.model; // val優先
-
     const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && baseModel(i.name) === model)
@@ -536,26 +482,21 @@ async function handlePostback(ev) {
   if (step === "cat") {
     const catVal = params.val || params.value;
 
-    // ★ クラススキップ：直行
+    // ★ クラススキップ系
     if (CLASS_SKIP_CATEGORIES.has(catVal)) {
       if (catVal === "クローラーフォーク") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["普通サヤ", "長サヤ"], "name", { cat: "クローラーフォーク" })
         );
-      } else {
-        const names = getNames({ cat: catVal });
-        return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat: catVal }));
       }
-    }
-
-    // ★ 設備備品：鉄板は仕様で提示 + 通常のクラス選択（鉄板を除外）
-    if (catVal === "設備備品") {
-      const iron = getIronPlateNames();
-      const classes = getClassesForCategory(catVal);
-      return reply(ev.replyToken, [
-        ...(iron.length ? [quickReplyOptions("仕様（鉄板）", iron, "name", { cat: catVal })] : []),
-        quickReplyOptions("クラス", classes, "cls", { cat: catVal })
-      ]);
+      // ラジコン草刈機：カテゴリ内の仕様名をそのまま提示
+      const names = [
+        ...new Set((master.items || [])
+          .filter(i => i.category === catVal)
+          .map(i => i.name)
+          .filter(Boolean))
+      ];
+      return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat: catVal }));
     }
 
     const classesAll = getClassesForCategory(catVal);
@@ -566,18 +507,45 @@ async function handlePostback(ev) {
   if (step === "cls") {
     const cat = params.cat;
 
-    // ★ 保険：クラススキップカテゴリはここに来ても直行
+    // ★ 保険：クラススキップ系がここに来ても仕様へ直行
     if (CLASS_SKIP_CATEGORIES.has(cat)) {
       if (cat === "クローラーフォーク") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["普通サヤ", "長サヤ"], "name", { cat })
         );
-      } else {
-        const names = getNames({ cat });
-        return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat }));
       }
+      const names = [
+        ...new Set((master.items || [])
+          .filter(i => i.category === cat)
+          .map(i => i.name)
+          .filter(Boolean))
+      ];
+      return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat }));
     }
 
+    // ★ 仕様スキップ系：クラスが確定したら即価格
+    if (SPEC_SKIP_CATEGORIES.has(cat)) {
+      const classesAll = [
+        ...new Set((master.items || [])
+          .filter(i => i.category === cat && (params.model ? baseModel(i.name) === params.model : true))
+          .map(i => i.class)
+          .filter(Boolean))
+      ];
+      const cls = params.val || (params.idx != null ? classesAll[Number(params.idx)] : null);
+      if (!cls) return reply(ev.replyToken, { type: "text", text: "クラス選択に失敗しました。" });
+
+      const items = (master.items || []).filter(i =>
+        i.category === cat && i.class === cls
+      );
+      if (items.length === 0) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+
+      const it = items[0];
+      const v = pickVariant(it);
+      const title = `${cat} ${cls}｜${baseModel(it.name)}`;
+      return reply(ev.replyToken, priceCard(title, v));
+    }
+
+    // 以降：通常分岐
     const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && (params.model ? baseModel(i.name) === params.model : true))
@@ -619,15 +587,6 @@ async function handlePostback(ev) {
       return reply(ev.replyToken, priceCard(title, v));
     }
 
-    // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン
-    if (params.model && SPEC_SKIP_MODELS.has(params.model)) {
-      const it = pickSingleItem({ cat, model: params.model, cls });
-      if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      const v = pickVariant(it);
-      const title = `${cat} ${cls}｜${baseModel(it.name)}`;
-      return reply(ev.replyToken, priceCard(title, v));
-    }
-
     // スライドアームの分岐
     if (cat === "スライドアーム") {
       if (cls === "0.25㎥") {
@@ -659,13 +618,13 @@ async function handlePostback(ev) {
       ...new Set((master.items || [])
         .filter(i =>
           i.category === cat &&
-          (cls ? i.class === cls : true) &&
+          (params.val ? i.class === params.val : true) &&
           (params.model ? baseModel(i.name) === params.model : true)
         )
         .map(i => i.name)
         .filter(Boolean))
     ];
-    return reply(ev.replyToken, quickReplyOptions("仕様", namesAll, "name", { cat, cls }));
+    return reply(ev.replyToken, quickReplyOptions("仕様", namesAll, "name", { cat, cls: params.val }));
   }
 
   // --- 追加：スライド 0.25 用（pose → name） ---
@@ -738,7 +697,7 @@ async function handlePostback(ev) {
     );
   }
 
-  // --- スライド 0.45/0.7 用（crane → name） ---
+  // --- 追加：スライド 0.45/0.7 用（crane → name） ---
   if (step === "crane") {
     const cat = params.cat;
     const cls = params.cls;
