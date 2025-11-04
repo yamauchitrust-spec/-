@@ -1363,34 +1363,54 @@
       "env": 0
     },
     {
-      "category": "スタンプクラッシャー",
+      "category": "クサカルゴン",
       "class": "0.1㎥",
-      "name": "SC400",
-      "day": 50000,
-      "month": 600000,
-      "base": 1000,
+      "name": "本体",
+      "day": 22000,
+      "month": 315000,
+      "base": 2000,
       "ins": 500,
       "env": 0
     },
     {
-      "category": "スタンプクラッシャー",
-      "class": "0.25㎥",
-      "name": "SC600",
-      "day": 80000,
-      "month": 960000,
+      "category": "クサカルゴン",
+      "class": "0.2㎥",
+      "name": "本体",
+      "day": 23000,
+      "month": 345000,
       "base": 2000,
+      "ins": 500,
+      "env": 0
+    },
+    {
+      "category": "クサカルゴン",
+      "class": "0.25㎥",
+      "name": "本体",
+      "day": 29000,
+      "month": 395000,
+      "base": 3000,
       "ins": 600,
       "env": 0
     },
     {
-      "category": "スタンプクラッシャー",
+      "category": "クサカルゴン",
       "class": "0.45㎥",
-      "name": "SC850Pro",
-      "day": 96000,
-      "month": 1160000,
-      "base": 2000,
+      "name": "本体",
+      "day": 35000,
+      "month": 480000,
+      "base": 3000,
       "ins": 800,
       "env": 600
+    },
+    {
+      "category": "ラジコン草刈機",
+      "class": "-",
+      "name": "SH950RC",
+      "day": 25000,
+      "month": 300000,
+      "base": 2000,
+      "ins": 1000,
+      "env": 0
     }
   ]
 }
