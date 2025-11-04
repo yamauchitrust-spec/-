@@ -4,6 +4,7 @@
 // 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
 // 追加: ラジコン草刈機／コンパクトトラックローダー もクラススキップで仕様へ直行
 // 追加: チルトローテーター／マルチャー／クサカルゴン は仕様スキップ（クラス選択後に即価格）
+// 追加: 設備備品の「鉄板」はクラスから除外し、仕様（name）として提示
 
 import express from "express";
 import crypto from "crypto";
@@ -27,14 +28,14 @@ const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
 const CLASS_SKIP_CATEGORIES = new Set([
   "クローラーフォーク",
   "ラジコン草刈機",
-  "コンパクトトラックローダー"
+  "コンパクトトラックローダー",
 ]);
 
 // ---- 仕様スキップ対象（モデル名ベース名）
 const SPEC_SKIP_MODELS = new Set([
   "チルトローテーター",
   "マルチャー",
-  "クサカルゴン"
+  "クサカルゴン",
 ]);
 
 // ---- スライドアーム 法面加算 ----
@@ -78,7 +79,6 @@ function normalize(text) {
   }
   return t;
 }
-// “機種（ベース名）”を抽出：括弧の前まで（全角/半角対応）
 function baseModel(name = "") {
   const cut1 = name.split("（")[0];
   const cut2 = cut1.split("(")[0];
@@ -87,12 +87,18 @@ function baseModel(name = "") {
 
 // 油圧ショベルのクラス並びを固定（存在するものだけ）※ミニショベルを先頭に
 function getClassesForCategory(cat) {
-  const raw = [
+  let raw = [
     ...new Set((master.items || [])
       .filter(i => i.category === cat)
       .map(i => i.class)
       .filter(Boolean))
   ];
+
+  // 設備備品: 「鉄板」はクラスから外す（仕様で出すため）
+  if (cat === "設備備品") {
+    raw = raw.filter(c => c !== "鉄板");
+  }
+
   if (cat === "油圧ショベル") {
     const desired = ["ミニショベル", "0.1㎥", "0.2㎥", "0.25㎥", "0.45㎥", "0.7㎥"];
     const set = new Set(raw);
@@ -111,14 +117,24 @@ function getNames({ cat, model, cls }) {
   return [...new Set(list.map(i => i.name).filter(Boolean))];
 }
 
-// 指定条件に最も合う1件を選ぶ（仕様スキップ時の代表値選択）
+// 設備備品の鉄板だけの仕様一覧を取得（class="鉄板" 優先、なければ name に鉄板を含む）
+function getIronPlateNames() {
+  let list = (master.items || []).filter(i => i.category === "設備備品" && i.class === "鉄板");
+  if (list.length === 0) {
+    list = (master.items || []).filter(i =>
+      i.category === "設備備品" && (i.name?.includes("鉄板") || baseModel(i.name)?.includes("鉄板"))
+    );
+  }
+  return [...new Set(list.map(i => i.name).filter(Boolean))];
+}
+
+// 選択条件に最も合う1件を選ぶ（仕様スキップ時の代表値選択）
 function pickSingleItem({ cat, model, cls }) {
   let list = (master.items || []).filter(i => i.category === cat);
   if (model) list = list.filter(i => baseModel(i.name) === model);
   if (cls)   list = list.filter(i => i.class === cls);
   if (list.length === 0) return null;
 
-  // 優先度：名前に「標準」「通常」「ベース」 → 後方小旋回 → 先頭
   const pref = list.find(i => /標準|通常|ベース/.test(i.name))
            || list.find(i => i.name.includes("後方小旋回"))
            || list[0];
@@ -126,20 +142,14 @@ function pickSingleItem({ cat, model, cls }) {
 }
 
 // スライドアーム：選択条件でベース行を絞り込む
-// pose: "後方小旋回" | "超小旋回" | "スタンダード" | undefined
-// crane: "クレーン仕様" | "クレーン無し" | undefined
-// track: "鉄キャタ" | "ゴムキャタ" | undefined
 function pickSlideBaseItem(cls, pose, crane, track) {
   let list = (master.items || []).filter(i => i.category === "スライドアーム" && i.class === cls);
   if (list.length === 0) return null;
 
-  // 0.25㎥：pose（後方/超小）
   if (cls === "0.25㎥" && pose) {
     const withPose = list.filter(i => i.name.includes(pose));
     if (withPose.length) list = withPose;
   }
-
-  // 0.45㎥：クレーン仕様/無し
   if (cls === "0.45㎥" && crane) {
     if (crane === "クレーン仕様") {
       const onlyCrane = list.filter(i => i.name.includes("クレーン"));
@@ -149,8 +159,6 @@ function pickSlideBaseItem(cls, pose, crane, track) {
       if (noCrane.length) list = noCrane;
     }
   }
-
-  // 0.7㎥：pose → track → crane
   if (cls === "0.7㎥") {
     if (pose) {
       const byPose = list.filter(i => i.name.includes(pose));
@@ -171,7 +179,6 @@ function pickSlideBaseItem(cls, pose, crane, track) {
     }
   }
 
-  // 最終優先：後方小旋回 → それ以外
   const pref = list.find(i => i.name.includes("後方小旋回"));
   return pref || list[0];
 }
@@ -231,7 +238,6 @@ function priceCard(title, p) {
     });
   }
 
-  // 価格表示後に「メニューに戻る」を Quick Reply で出す
   return {
     type: "flex",
     altText: `${title} のレンタル価格`,
@@ -462,6 +468,16 @@ async function handleText(ev) {
       }
     }
 
+    // ★ 設備備品：鉄板は仕様で提示 + 通常のクラス選択（鉄板を除外）
+    if (cat === "設備備品") {
+      const iron = getIronPlateNames();
+      const classes = getClassesForCategory(cat); // ここは既に「鉄板」を除外済み
+      return reply(ev.replyToken, [
+        ...(iron.length ? [quickReplyOptions("仕様（鉄板）", iron, "name", { cat })] : []),
+        quickReplyOptions("クラス", classes, "cls", { cat })
+      ]);
+    }
+
     if (MODEL_FIRST_CATEGORIES.has(cat)) {
       return reply(ev.replyToken, modelMenu(cat));
     }
@@ -494,9 +510,7 @@ async function handlePostback(ev) {
   // 機種選択
   if (step === "model") {
     const cat = params.cat;
-    const model = params.val || params.model; // val優先
-
-    // 仕様スキップ対象モデルなら、クラス選択→即価格に進むのでここは通常通りクラス選択を提示
+    const model = params.val || params.model;
     const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && baseModel(i.name) === model)
@@ -520,6 +534,16 @@ async function handlePostback(ev) {
         const names = getNames({ cat: catVal });
         return reply(ev.replyToken, quickReplyOptions("仕様", names, "name", { cat: catVal }));
       }
+    }
+
+    // ★ 設備備品：鉄板は仕様で提示 + 通常のクラス選択（鉄板を除外）
+    if (catVal === "設備備品") {
+      const iron = getIronPlateNames();
+      const classes = getClassesForCategory(catVal);
+      return reply(ev.replyToken, [
+        ...(iron.length ? [quickReplyOptions("仕様（鉄板）", iron, "name", { cat: catVal })] : []),
+        quickReplyOptions("クラス", classes, "cls", { cat: catVal })
+      ]);
     }
 
     const classesAll = getClassesForCategory(catVal);
@@ -595,24 +619,20 @@ async function handlePostback(ev) {
     // スライドアームの分岐
     if (cat === "スライドアーム") {
       if (cls === "0.25㎥") {
-        // 後方/超小 → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("タイプ", ["後方小旋回", "超小旋回"], "pose", { cat, cls })
         );
       }
       if (cls === "0.45㎥") {
-        // クレーン仕様/無し → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("クレーン", ["クレーン仕様", "クレーン無し"], "crane", { cat, cls })
         );
       }
       if (cls === "0.7㎥") {
-        // スタンダード/後方 → 鉄/ゴム →（特例でスキップ可）→ クレーン → バケット/法面
         return reply(ev.replyToken,
           quickReplyOptions("タイプ", ["スタンダード", "後方小旋回"], "pose70", { cat, cls })
         );
       }
-      // その他のクラス：バケット/法面のみ
       return reply(ev.replyToken,
         quickReplyOptions("仕様", ["バケット", "法面付き"], "name", { cat, cls })
       );
@@ -668,9 +688,7 @@ async function handlePostback(ev) {
     const track  = params.val || (params.idx != null ? tracks[Number(params.idx)] : null);
     if (!track) return reply(ev.replyToken, { type: "text", text: "キャタ選択に失敗しました。" });
 
-    // ★ 0.7㎥ の特例分岐
     if (cat === "スライドアーム" && cls === "0.7㎥") {
-      // 1) スタンダード × ゴムキャタ → クレーン仕様のみ
       if (pose === "スタンダード" && track === "ゴムキャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
@@ -678,7 +696,6 @@ async function handlePostback(ev) {
           })
         );
       }
-      // 2) 後方小旋回 × ゴムキャタ → クレーン無しのみ
       if (pose === "後方小旋回" && track === "ゴムキャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
@@ -686,7 +703,6 @@ async function handlePostback(ev) {
           })
         );
       }
-      // 3) 後方小旋回 × 鉄キャタ → クレーン仕様のみ
       if (pose === "後方小旋回" && track === "鉄キャタ") {
         return reply(ev.replyToken,
           quickReplyOptions("仕様", ["バケット", "法面付き"], "name", {
@@ -696,7 +712,6 @@ async function handlePostback(ev) {
       }
     }
 
-    // 通常：クレーン仕様 / クレーン無し を選択
     return reply(ev.replyToken,
       quickReplyOptions("クレーン", ["クレーン仕様", "クレーン無し"], "crane", { cat, cls, pose, track })
     );
@@ -722,10 +737,9 @@ async function handlePostback(ev) {
 
     // スライドアーム：バケット/法面（0.25/0.45/0.7 すべて統合）
     if (cat === "スライドアーム") {
-      const chosen = params.val; // "バケット" or "法面付き"
+      const chosen = params.val;
       if (!chosen) return reply(ev.replyToken, { type: "text", text: "仕様選択に失敗しました。" });
 
-      // 0.25：pose、0.45：crane、0.7：pose/track/crane を反映
       const pose25 = (cls === "0.25㎥") ? params.pose : undefined;
       const crane45 = (cls === "0.45㎥") ? params.crane : undefined;
       const pose70  = (cls === "0.7㎥")  ? params.pose  : undefined;
@@ -763,7 +777,6 @@ async function handlePostback(ev) {
     );
 
     if (items.length === 0) {
-      // 念のための緩和（前方/含有/baseModel）
       const all = (master.items || []).filter(i => i.category === cat && (cls ? i.class === cls : true));
       let it = all.find(i => i.name === name)
         || all.find(i => i.name?.startsWith(name))
