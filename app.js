@@ -1,8 +1,12 @@
 // app.js（最上位 → カテゴリ → 機種 → クラス → 価格カード）
 // idx依存をやめ、postbackに実値"val"を載せて受信側はval優先で照合する安定版。
-// 追加: クローラーフォークはクラス選択をスキップして仕様（普通サヤ/長サヤ）に直行
-// 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
-// 追加: チルトローテーター と マルチャー はクラス選択後に仕様スキップして即価格表示
+// 特例:
+// - クローラーフォーク：クラス選択をスキップして仕様（二択）へ直行
+// - チルトローテータ / マルチャー / ラジコン草刈機：仕様（name）をスキップして即価格
+// - 油圧ショベル：クラス並び「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
+// - スライドアーム：クラス別に pose/track/crane 分岐 + 法面加算
+// - グラップルソー：即価格
+// - フェラバン 0.25㎥：排土板付き固定
 
 import express from "express";
 import crypto from "crypto";
@@ -21,6 +25,9 @@ const master = JSON.parse(fs.readFileSync("./master.json", "utf8"));
 
 // ---- “まず機種を選ぶ”カテゴリ ----
 const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
+
+// ---- 仕様スキップ（name を聞かずに即価格表示）カテゴリ ----
+const SPEC_SKIP_CATEGORIES = new Set(["チルトローテータ", "マルチャー", "ラジコン草刈機"]);
 
 // ---- スライドアーム 法面加算 ----
 const SLOPE_ADD = {
@@ -194,7 +201,6 @@ function priceCard(title, p) {
     });
   }
 
-  // 価格表示後に「メニューに戻る」を Quick Reply で出す
   return {
     type: "flex",
     altText: `${title} のレンタル価格`,
@@ -495,31 +501,18 @@ async function handlePostback(ev) {
     const cls = params.val || (params.idx != null ? classesAll[Number(params.idx)] : null);
     if (!cls) return reply(ev.replyToken, { type: "text", text: "クラス選択に失敗しました。" });
 
-    // ★特例：チルトローテーターは仕様スキップして即価格
-    if (cat === "チルトローテーター") {
+    // ★ 仕様スキップ：チルトローテータ / マルチャー / ラジコン草刈機 → 即価格
+    if (SPEC_SKIP_CATEGORIES.has(cat)) {
       const items = (master.items || []).filter(i =>
-        i.category === cat && (cls ? i.class === cls : true)
+        i.category === cat && i.class === cls
       );
       if (items.length === 0) {
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
       }
-      const it = items[0];
+      // baseModel がカテゴリ名に一致するものを優先（なければ先頭）
+      const it = items.find(i => baseModel(i.name) === cat) || items[0];
       const v  = pickVariant(it);
-      const title = `${cat}${cls ? " " + cls : ""}｜${baseModel(it.name)}`;
-      return reply(ev.replyToken, priceCard(title, v));
-    }
-
-    // ★特例：マルチャーも仕様スキップして即価格
-    if (cat === "マルチャー") {
-      const items = (master.items || []).filter(i =>
-        i.category === cat && (cls ? i.class === cls : true)
-      );
-      if (items.length === 0) {
-        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      }
-      const it = items[0];
-      const v  = pickVariant(it);
-      const title = `${cat}${cls ? " " + cls : ""}｜${baseModel(it.name)}`;
+      const title = `${cat} ${cls}｜${baseModel(it.name)}`;
       return reply(ev.replyToken, priceCard(title, v));
     }
 
