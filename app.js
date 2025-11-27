@@ -31,12 +31,23 @@ const CLASS_SKIP_CATEGORIES = new Set([
   "木材破砕機"        // ★ 追加
 ]);
 
-// ---- 仕様スキップ対象（モデル名ベース名に含まれていればOK）
-const SPEC_SKIP_KEYWORDS = [
+// ---- 仕様スキップ対象（モデル名ベース名）
+const SPEC_SKIP_MODELS = new Set([
   "チルトローテーター",
   "マルチャー",
   "クサカルゴン"
-];
+]);
+
+// ★ 仕様スキップ対象かどうか判定（カテゴリ名 or モデルベース名に含まれていればOK）
+function isSpecSkipTarget(cat, model) {
+  const catStr = cat || "";
+  const base   = model ? baseModel(model) : "";
+  for (const key of SPEC_SKIP_MODELS) {
+    if (catStr === key || catStr.includes(key)) return true;
+    if (base === key || base.includes(key))     return true;
+  }
+  return false;
+}
 
 // ---- スライドアーム 法面加算 ----
 const SLOPE_ADD = {
@@ -584,16 +595,25 @@ async function handlePostback(ev) {
       return reply(ev.replyToken, priceCard(title, v));
     }
 
-    // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン（ベース名に含まれていればOK）
-    if (params.model) {
-      const modelBase = baseModel(params.model);
-      if (SPEC_SKIP_KEYWORDS.some(k => modelBase.includes(k))) {
-        const it = pickSingleItem({ cat, model: modelBase, cls });
-        if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-        const v = pickVariant(it);
-        const title = `${cat} ${cls}｜${baseModel(it.name)}`;
-        return reply(ev.replyToken, priceCard(title, v));
+    // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン
+    if (isSpecSkipTarget(cat, params.model)) {
+      const modelBase = params.model ? baseModel(params.model) : undefined;
+
+      let it;
+      // 林業用機械など、モデル名で区別したい場合
+      if (modelBase && !SPEC_SKIP_MODELS.has(cat)) {
+        it = pickSingleItem({ cat, model: modelBase, cls });
+      } else {
+        // カテゴリ名が「マルチャー」などの場合は、カテゴリ＋クラスだけで拾う
+        it = pickSingleItem({ cat, cls });
       }
+
+      if (!it) {
+        return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+      }
+      const v = pickVariant(it);
+      const title = `${cat} ${cls}｜${baseModel(it.name)}`;
+      return reply(ev.replyToken, priceCard(title, v));
     }
 
     // スライドアームの分岐
