@@ -31,12 +31,12 @@ const CLASS_SKIP_CATEGORIES = new Set([
   "木材破砕機"        // ★ 追加
 ]);
 
-// ---- 仕様スキップ対象（モデル名ベース名）
-const SPEC_SKIP_MODELS = new Set([
+// ---- 仕様スキップ対象（モデル名ベース名に含まれていればOK）
+const SPEC_SKIP_KEYWORDS = [
   "チルトローテーター",
   "マルチャー",
   "クサカルゴン"
-]);
+];
 
 // ---- スライドアーム 法面加算 ----
 const SLOPE_ADD = {
@@ -497,7 +497,7 @@ async function handlePostback(ev) {
     const cat = params.cat;
     const model = params.val || params.model; // val優先
 
-    // 仕様スキップ対象モデルなら、クラス選択→即価格に進むのでここは通常通りクラス選択を提示
+    // 仕様スキップ対象モデルでも、ここでは通常通りクラス選択までは出す
     const classesAll = [
       ...new Set((master.items || [])
         .filter(i => i.category === cat && baseModel(i.name) === model)
@@ -584,10 +584,10 @@ async function handlePostback(ev) {
       return reply(ev.replyToken, priceCard(title, v));
     }
 
-    // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン
+    // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン（ベース名に含まれていればOK）
     if (params.model) {
       const modelBase = baseModel(params.model);
-      if (SPEC_SKIP_MODELS.has(modelBase)) {
+      if (SPEC_SKIP_KEYWORDS.some(k => modelBase.includes(k))) {
         const it = pickSingleItem({ cat, model: modelBase, cls });
         if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
         const v = pickVariant(it);
