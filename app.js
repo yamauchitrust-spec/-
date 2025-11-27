@@ -585,12 +585,15 @@ async function handlePostback(ev) {
     }
 
     // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン
-    if (params.model && SPEC_SKIP_MODELS.has(params.model)) {
-      const it = pickSingleItem({ cat, model: params.model, cls });
-      if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-      const v = pickVariant(it);
-      const title = `${cat} ${cls}｜${baseModel(it.name)}`;
-      return reply(ev.replyToken, priceCard(title, v));
+    if (params.model) {
+      const modelBase = baseModel(params.model);
+      if (SPEC_SKIP_MODELS.has(modelBase)) {
+        const it = pickSingleItem({ cat, model: modelBase, cls });
+        if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
+        const v = pickVariant(it);
+        const title = `${cat} ${cls}｜${baseModel(it.name)}`;
+        return reply(ev.replyToken, priceCard(title, v));
+      }
     }
 
     // スライドアームの分岐
