@@ -2,8 +2,8 @@
 // idx依存をやめ、postbackに実値"val"を載せて受信側はval優先で照合する安定版。
 // 追加: クローラーフォークはクラス選択をスキップして仕様（普通サヤ/長サヤ）に直行
 // 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
-// 追加: ラジコン草刈機／コンパクトトラックローダー もクラススキップで仕様へ直行
-// 追加: チルトローテータ／マルチャー／クサカルゴン は仕様スキップ（クラス選択後に即価格、表記ゆれ対応）
+// 追加: ラジコン草刈機／コンパクトトラックローダー／木材破砕機 もクラススキップで仕様へ直行
+// 追加: チルトローテーター／マルチャー／クサカルゴン は仕様スキップ（クラス選択後に即価格）
 
 import express from "express";
 import crypto from "crypto";
@@ -27,26 +27,16 @@ const MODEL_FIRST_CATEGORIES = new Set(["林業用機械"]);
 const CLASS_SKIP_CATEGORIES = new Set([
   "クローラーフォーク",
   "ラジコン草刈機",
-  "コンパクトトラックローダー"
+  "コンパクトトラックローダー",
+  "木材破砕機"        // ★ 追加
 ]);
 
-// ---- 仕様スキップ対象（モデル名ベース名・表記ゆれ対応用の正規化セット） ----
-const SPEC_SKIP_BASES = [
-  "チルトローテータ",   // 長音1
-  "チルトローテーター", // 長音2
+// ---- 仕様スキップ対象（モデル名ベース名）
+const SPEC_SKIP_MODELS = new Set([
+  "チルトローテーター",
   "マルチャー",
   "クサカルゴン"
-];
-
-// 正規化（長音/全角カッコ/空白を無視して比較）
-function canon(s) {
-  return (s || "")
-    .replace(/[（）()]/g, "")
-    .replace(/[ー\-‐–—―]/g, "") // 長音・ダッシュ類を全部無視
-    .replace(/\s/g, "")
-    .trim();
-}
-const SPEC_SKIP_CANON = new Set(SPEC_SKIP_BASES.map(canon));
+]);
 
 // ---- スライドアーム 法面加算 ----
 const SLOPE_ADD = {
@@ -84,8 +74,8 @@ function pickVariant(it) {
 function normalize(text) {
   const t = (text || "").trim();
   const al = master.aliases || {};
-  for (const [alias, canonName] of Object.entries(al)) {
-    if (t.includes(alias)) return t.replace(alias, canonName);
+  for (const [alias, canon] of Object.entries(al)) {
+    if (t.includes(alias)) return t.replace(alias, canon);
   }
   return t;
 }
@@ -117,7 +107,7 @@ function getClassesForCategory(cat) {
 // 指定カテゴリ/モデル/クラスで仕様（name）候補を取得
 function getNames({ cat, model, cls }) {
   let list = (master.items || []).filter(i => i.category === cat);
-  if (model) list = list.filter(i => canon(baseModel(i.name)) === canon(model));
+  if (model) list = list.filter(i => baseModel(i.name) === model);
   if (cls)   list = list.filter(i => i.class === cls);
   return [...new Set(list.map(i => i.name).filter(Boolean))];
 }
@@ -125,7 +115,7 @@ function getNames({ cat, model, cls }) {
 // 指定条件に最も合う1件を選ぶ（仕様スキップ時の代表値選択）
 function pickSingleItem({ cat, model, cls }) {
   let list = (master.items || []).filter(i => i.category === cat);
-  if (model) list = list.filter(i => canon(baseModel(i.name)) === canon(model));
+  if (model) list = list.filter(i => baseModel(i.name) === model);
   if (cls)   list = list.filter(i => i.class === cls);
   if (list.length === 0) return null;
 
@@ -134,20 +124,6 @@ function pickSingleItem({ cat, model, cls }) {
            || list.find(i => i.name.includes("後方小旋回"))
            || list[0];
   return pref;
-}
-
-// ★ 仕様スキップ対象ベース名をカテゴリ＋クラスから自動検出
-function detectSpecSkipBase(cat, cls) {
-  const bases = [
-    ...new Set(
-      (master.items || [])
-        .filter(i => i.category === cat && (!cls || i.class === cls))
-        .map(i => baseModel(i.name))
-        .filter(Boolean)
-    )
-  ];
-  const hit = bases.find(b => SPEC_SKIP_CANON.has(canon(b)));
-  return hit || null;
 }
 
 // スライドアーム：選択条件でベース行を絞り込む
@@ -521,10 +497,10 @@ async function handlePostback(ev) {
     const cat = params.cat;
     const model = params.val || params.model; // val優先
 
-    // 仕様スキップ対象モデルでも、ここは通常通りクラス選択を提示（クラス選択後に即価格へ）
+    // 仕様スキップ対象モデルなら、クラス選択→即価格に進むのでここは通常通りクラス選択を提示
     const classesAll = [
       ...new Set((master.items || [])
-        .filter(i => i.category === cat && canon(baseModel(i.name)) === canon(model))
+        .filter(i => i.category === cat && baseModel(i.name) === model)
         .map(i => i.class)
         .filter(Boolean))
     ];
@@ -569,7 +545,7 @@ async function handlePostback(ev) {
 
     const classesAll = [
       ...new Set((master.items || [])
-        .filter(i => i.category === cat && (params.model ? canon(baseModel(i.name)) === canon(params.model) : true))
+        .filter(i => i.category === cat && (params.model ? baseModel(i.name) === params.model : true))
         .map(i => i.class)
         .filter(Boolean))
     ];
@@ -608,18 +584,10 @@ async function handlePostback(ev) {
       return reply(ev.replyToken, priceCard(title, v));
     }
 
-    // ★ 仕様スキップ：チルトローテータ／マルチャー／クサカルゴン（表記ゆれ対応）
-    const modelBase = params.model ? params.model : detectSpecSkipBase(cat, cls);
-    if (modelBase && SPEC_SKIP_CANON.has(canon(modelBase))) {
-      const it =
-        (master.items || []).find(i =>
-          i.category === cat &&
-          i.class === cls &&
-          canon(baseModel(i.name)) === canon(modelBase)
-        ) || pickSingleItem({ cat, model: modelBase, cls });
-
+    // ★ 仕様スキップ：チルトローテーター／マルチャー／クサカルゴン
+    if (params.model && SPEC_SKIP_MODELS.has(params.model)) {
+      const it = pickSingleItem({ cat, model: params.model, cls });
       if (!it) return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
-
       const v = pickVariant(it);
       const title = `${cat} ${cls}｜${baseModel(it.name)}`;
       return reply(ev.replyToken, priceCard(title, v));
@@ -657,7 +625,7 @@ async function handlePostback(ev) {
         .filter(i =>
           i.category === cat &&
           (cls ? i.class === cls : true) &&
-          (params.model ? canon(baseModel(i.name)) === canon(params.model) : true)
+          (params.model ? baseModel(i.name) === params.model : true)
         )
         .map(i => i.name)
         .filter(Boolean))
@@ -801,7 +769,7 @@ async function handlePostback(ev) {
       let it = all.find(i => i.name === name)
         || all.find(i => i.name?.startsWith(name))
         || all.find(i => i.name?.includes(name))
-        || all.find(i => canon(baseModel(i.name)) === canon(name) || canon(baseModel(i.name)).includes(canon(name)));
+        || all.find(i => baseModel(i.name) === name || baseModel(i.name).includes(name));
       if (!it) {
         console.warn("[NO MATCH]", { cat, cls, name, params });
         return reply(ev.replyToken, { type: "text", text: "該当データが見つかりませんでした。" });
