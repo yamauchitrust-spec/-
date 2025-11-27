@@ -4,6 +4,7 @@
 // 追加: 油圧ショベルのクラス並びを「ミニショベル, 0.1, 0.2, 0.25, 0.45, 0.7」に固定（存在するものだけ）
 // 追加: ラジコン草刈機／コンパクトトラックローダー／木材破砕機／高所作業車 もクラススキップで仕様へ直行
 // 追加: チルトローテーター／マルチャー／クサカルゴン は仕様スキップ（クラス選択後に即価格）
+// 追加: 資材・備品カテゴリではクラス「-」を「その他」というラベルで表示（中身の値は "-" のまま）
 
 import express from "express";
 import crypto from "crypto";
@@ -29,7 +30,7 @@ const CLASS_SKIP_CATEGORIES = new Set([
   "ラジコン草刈機",
   "コンパクトトラックローダー",
   "木材破砕機",
-  "高所作業車"      // ★ 追加
+  "高所作業車"
 ]);
 
 // ---- 仕様スキップ対象（モデル名ベース名）
@@ -296,6 +297,30 @@ function quickReplyOptions(type, options, step, extra = {}) {
   };
 }
 
+// ★ クラス専用 QuickReply（資材・備品なら「-」を「その他」として表示）
+function classQuickReply(cat, classes, step, extra = {}) {
+  const list = (classes || []).filter(Boolean);
+  if (cat === "資材・備品") {
+    return {
+      type: "text",
+      text: "「クラス」を選んでください",
+      quickReply: {
+        items: list.slice(0, 13).map((cls) => ({
+          type: "action",
+          action: {
+            type: "postback",
+            // 表示だけ「その他」、送る値(val)は元の cls
+            label: cls === "-" ? "その他" : safeLabel(cls, 20),
+            data: new URLSearchParams({ step, val: String(cls), ...extra }).toString(),
+            displayText: cls === "-" ? "その他" : String(cls)
+          }
+        }))
+      }
+    };
+  }
+  return quickReplyOptions("クラス", list, step, extra);
+}
+
 // カテゴリメニュー（多い場合はカルーセル分割）
 function categoryMenu(categories) {
   const chunk = (arr, n) => {
@@ -479,7 +504,7 @@ async function handleText(ev) {
       return reply(ev.replyToken, modelMenu(cat));
     }
     const classes = getClassesForCategory(cat);
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat }));
+    return reply(ev.replyToken, classQuickReply(cat, classes, "cls", { cat }));
   }
 
   const hitCat = cats.find(c => text.includes(c));
@@ -488,7 +513,7 @@ async function handleText(ev) {
       return reply(ev.replyToken, modelMenu(hitCat));
     }
     const classes = getClassesForCategory(hitCat);
-    return reply(ev.replyToken, quickReplyOptions("クラス", classes, "cls", { cat: hitCat }));
+    return reply(ev.replyToken, classQuickReply(hitCat, classes, "cls", { cat: hitCat }));
   }
 
   return reply(ev.replyToken, rootMenu());
@@ -516,7 +541,7 @@ async function handlePostback(ev) {
         .map(i => i.class)
         .filter(Boolean))
     ];
-    return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat, model }));
+    return reply(ev.replyToken, classQuickReply(cat, classesAll, "cls", { cat, model }));
   }
 
   // カテゴリ → クラス
@@ -536,7 +561,7 @@ async function handlePostback(ev) {
     }
 
     const classesAll = getClassesForCategory(catVal);
-    return reply(ev.replyToken, quickReplyOptions("クラス", classesAll, "cls", { cat: catVal }));
+    return reply(ev.replyToken, classQuickReply(catVal, classesAll, "cls", { cat: catVal }));
   }
 
   // クラス選択 → 仕様（特例含む）
